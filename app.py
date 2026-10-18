@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from geopy.geocoders import Nominatim
 
 # Page Configuration
 st.set_page_config(page_title="AI Solar Tracker Evaluator", layout="wide")
@@ -19,17 +20,37 @@ city_coords = {
     "Miami, FL (Humid/Coastal)": (25.7617, -80.1918),
     "Chicago, IL (Midwest)": (41.8781, -87.6298),
     "Boston, MA (Northeast)": (42.3601, -71.0589),
-    "Custom U.S. Coordinates": (0.0, 0.0)
+    "🔍 Search Custom City / State": (0.0, 0.0),
+    "🧭 Enter Custom Lat / Lon": (0.0, 0.0)
 }
 
-selected_city = st.sidebar.selectbox("Select U.S. Test Region", list(city_coords.keys()))
+selected_option = st.sidebar.selectbox("Select U.S. Test Region", list(city_coords.keys()))
 
-if selected_city == "Custom U.S. Coordinates":
-    st.sidebar.subheader("Custom Location Setup")
+# Handle location inputs based on selection
+lat, lon = 34.0522, -118.2437
+location_label = selected_option
+
+if selected_option == "🔍 Search Custom City / State":
+    st.sidebar.subheader("City Search")
+    city_query = st.sidebar.text_input("Enter City & State", value="Austin, TX")
+    try:
+        geolocator = Nominatim(user_agent="congressional_app_challenge_solar_evaluator")
+        location = geolocator.geocode(city_query + ", USA")
+        if location:
+            lat, lon = location.latitude, location.longitude
+            location_label = location.address
+        else:
+            st.sidebar.error("Could not find that location. Using default coordinates.")
+    except Exception:
+        st.sidebar.warning("Search lookup unavailable; using default coordinates.")
+
+elif selected_option == "🧭 Enter Custom Lat / Lon":
+    st.sidebar.subheader("Coordinate Setup")
     lat = st.sidebar.number_input("Latitude", value=34.0522, format="%.4f")
     lon = st.sidebar.number_input("Longitude", value=-118.2437, format="%.4f")
+    location_label = f"Custom Coordinates ({lat}, {lon})"
 else:
-    lat, lon = city_coords[selected_city]
+    lat, lon = city_coords[selected_option]
 
 # Sliders
 st.sidebar.subheader("Hardware & Environmental Settings")
@@ -45,21 +66,19 @@ if uploaded_image:
 
 # --- RUN EVALUATION ACTION BUTTON ---
 if st.button("Run AI Tracker Evaluation", type="primary"):
-    location_label = f"Custom Coordinates ({lat}, {lon})" if selected_city == "Custom U.S. Coordinates" else selected_city
-    
     with st.spinner(f"Running physics engine & ML model evaluation for {location_label}..."):
         
-        # 1. Latitude-based solar baseline (Sunny southern regions get higher base output)
+        # 1. Latitude-based solar baseline
         base_solar_irradiance = max(20.0, 52.0 - (abs(lat) * 0.45))
         
-        # 2. Physics Tilt Optimization Curve (Peak efficiency happens near optimal latitude tilt, ~32°)
+        # 2. Physics Tilt Optimization Curve
         optimal_tilt = abs(lat) * 0.85
         tilt_efficiency_factor = max(0.6, 1.0 - (0.0012 * ((tilt_angle - optimal_tilt) ** 2)))
         
-        # 3. Calculate yields for Fixed, Standard Tracker, and AI Tracker
+        # 3. Calculate yields
         base_fixed = base_solar_irradiance * tilt_efficiency_factor
-        base_standard = base_fixed * 1.18  # Traditional single-axis tracker gain
-        base_ai = base_fixed * 1.27        # AI-optimized tracking gain
+        base_standard = base_fixed * 1.18
+        base_ai = base_fixed * 1.27
         
         # 4. Environmental Adjustments
         wind_adj = 1.0 - ((wind_cutoff - 12.0) * 0.003)
@@ -72,7 +91,6 @@ if st.button("Run AI Tracker Evaluation", type="primary"):
         std_gain = ((standard_yield - fixed_yield) / fixed_yield) * 100
         ai_gain = ((ai_yield - fixed_yield) / fixed_yield) * 100
         
-        # Dynamic motor wear reduction based on latitude/cloudiness
         wear_reduction = round(35.0 + (abs(lat) * 0.15), 1)
         
         # Display Dynamic Metrics
