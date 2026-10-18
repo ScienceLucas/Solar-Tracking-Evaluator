@@ -12,7 +12,6 @@ st.markdown("Evaluate energy efficiency gains, motor wear reduction, and custom 
 st.sidebar.header("Site Configuration")
 api_key_input = st.sidebar.text_input("NREL API Key (Optional)", type="password")
 
-# Expanded City Dictionary + Custom Option
 city_coords = {
     "Phoenix, AZ (Desert)": (33.4484, -112.0740),
     "Seattle, WA (Cloudy)": (47.6062, -122.3321),
@@ -25,7 +24,6 @@ city_coords = {
 
 selected_city = st.sidebar.selectbox("Select U.S. Test Region", list(city_coords.keys()))
 
-# If custom is selected, let the user type custom Latitude and Longitude
 if selected_city == "Custom U.S. Coordinates":
     st.sidebar.subheader("Custom Location Setup")
     lat = st.sidebar.number_input("Latitude", value=34.0522, format="%.4f")
@@ -33,11 +31,11 @@ if selected_city == "Custom U.S. Coordinates":
 else:
     lat, lon = city_coords[selected_city]
 
-# --- NEW SLIDERS ---
+# Sliders
 st.sidebar.subheader("Hardware & Environmental Settings")
 panel_count = st.sidebar.slider("Number of Solar Panels", 1, 500, 50)
 wind_cutoff = st.sidebar.slider("Wind Safety Cutoff (m/s)", 5.0, 20.0, 12.0)
-tilt_angle = st.sidebar.slider("Base Panel Tilt Angle (°)", 0.0, 60.0, 25.0)
+tilt_angle = st.sidebar.slider("Base Panel Tilt Angle (°)", 0.0, 60.0, 32.0)
 inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
 
 # Image upload widget for site preview
@@ -51,12 +49,19 @@ if st.button("Run AI Tracker Evaluation", type="primary"):
     
     with st.spinner(f"Running physics engine & ML model evaluation for {location_label}..."):
         
-        # Base baseline performance multipliers
-        base_fixed = 38.0 + (tilt_angle * 0.1)
-        base_standard = base_fixed * 1.15
-        base_ai = base_fixed * 1.23
+        # 1. Latitude-based solar baseline (Sunny southern regions get higher base output)
+        base_solar_irradiance = max(20.0, 52.0 - (abs(lat) * 0.45))
         
-        # Adjust for wind safety and inverter efficiency
+        # 2. Physics Tilt Optimization Curve (Peak efficiency happens near optimal latitude tilt, ~32°)
+        optimal_tilt = abs(lat) * 0.85
+        tilt_efficiency_factor = max(0.6, 1.0 - (0.0012 * ((tilt_angle - optimal_tilt) ** 2)))
+        
+        # 3. Calculate yields for Fixed, Standard Tracker, and AI Tracker
+        base_fixed = base_solar_irradiance * tilt_efficiency_factor
+        base_standard = base_fixed * 1.18  # Traditional single-axis tracker gain
+        base_ai = base_fixed * 1.27        # AI-optimized tracking gain
+        
+        # 4. Environmental Adjustments
         wind_adj = 1.0 - ((wind_cutoff - 12.0) * 0.003)
         eff_multiplier = inverter_eff / 100.0
         
@@ -67,7 +72,8 @@ if st.button("Run AI Tracker Evaluation", type="primary"):
         std_gain = ((standard_yield - fixed_yield) / fixed_yield) * 100
         ai_gain = ((ai_yield - fixed_yield) / fixed_yield) * 100
         
-        wear_reduction = 38.4 if selected_city != "Custom U.S. Coordinates" else 39.2
+        # Dynamic motor wear reduction based on latitude/cloudiness
+        wear_reduction = round(35.0 + (abs(lat) * 0.15), 1)
         
         # Display Dynamic Metrics
         col1, col2, col3, col4 = st.columns(4)
