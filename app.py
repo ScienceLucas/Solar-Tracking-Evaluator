@@ -60,7 +60,7 @@ tilt_angle = st.sidebar.slider("Base Panel Tilt Angle (°)", 0.0, 60.0, 32.0)
 inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
 
 # Image upload widget for site preview
-uploaded_image = st.sidebar.file_uploader("Upload Panel Layout / Site Image", type=["jpg", "png", "jpeg"])
+uploaded_image = st.sidebar.file_uploader("Upload Site File or Layout")
 if uploaded_image:
     st.sidebar.image(uploaded_image, caption="Uploaded Site Layout", use_column_width=True)
 
