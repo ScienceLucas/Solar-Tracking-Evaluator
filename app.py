@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from geopy.geocoders import Nominatim
+from utils import calculate_solar_physics
 
 # Page Configuration
 st.set_page_config(page_title="AI Solar Tracker Evaluator", layout="wide")
@@ -97,21 +98,14 @@ with tab1:
     if run_button or 'evaluated' not in st.session_state:
         st.session_state['evaluated'] = True
         
-        # Physics calculations
-        base_solar_irradiance = max(20.0, 52.0 - (abs(lat) * 0.45))
-        optimal_tilt = abs(lat) * 0.85
-        tilt_efficiency_factor = max(0.6, 1.0 - (0.0012 * ((tilt_angle - optimal_tilt) ** 2)))
+        # Call physics calculations from utils.py
+        fixed_yield, standard_yield, ai_yield = calculate_solar_physics(lat, tilt_angle, wind_cutoff, panel_count)
         
-        base_fixed = base_solar_irradiance * tilt_efficiency_factor
-        base_standard = base_fixed * 1.18
-        base_ai = base_fixed * 1.27
-        
-        wind_adj = 1.0 - ((wind_cutoff - 12.0) * 0.003)
+        # Apply inverter efficiency multiplier
         eff_multiplier = inverter_eff / 100.0
-        
-        fixed_yield = panel_count * base_fixed * wind_adj * eff_multiplier
-        standard_yield = panel_count * base_standard * wind_adj * eff_multiplier
-        ai_yield = panel_count * base_ai * wind_adj * eff_multiplier
+        fixed_yield *= eff_multiplier
+        standard_yield *= eff_multiplier
+        ai_yield *= eff_multiplier
         
         std_gain = ((standard_yield - fixed_yield) / fixed_yield) * 100
         ai_gain = ((ai_yield - fixed_yield) / fixed_yield) * 100
