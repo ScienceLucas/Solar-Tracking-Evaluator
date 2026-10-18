@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pydeck as pdk
 from geopy.geocoders import Nominatim
 
 # Page Configuration
@@ -90,30 +89,9 @@ with tab1:
     with col_right:
         st.subheader("📍 U.S. Site Map Pinpoint")
         
-        # Pydeck map tight-focused strictly on U.S.
+        # Native Streamlit map centered on selected coordinates with U.S. zoom
         map_df = pd.DataFrame({"lat": [lat], "lon": [lon]})
-        
-        view_state = pdk.ViewState(
-            latitude=lat if selected_option != "Phoenix, AZ (Desert)" else 38.5000,
-            longitude=lon if selected_option != "Phoenix, AZ (Desert)" else -96.0000,
-            zoom=3.8 if selected_option in ["Phoenix, AZ (Desert)", "🔍 Search Custom City / State"] and lat == 33.4484 else 6.0,
-            pitch=0
-        )
-        
-        layer = pdk.Layer(
-            "ScatterplotLayer",
-            data=map_df,
-            get_position=["lon", "lat"],
-            get_color="[235, 64, 52, 220]",
-            get_radius=40000,
-            pickable=True
-        )
-        
-        st.pydeck_chart(pdk.Deck(
-            layers=[layer],
-            initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=5.5, pitch=0),
-            map_style="mapbox://styles/mapbox/light-v10"
-        ))
+        st.map(map_df, zoom=4, use_container_width=True)
 
     # --- EVALUATION RESULTS SECTION ---
     if run_button or 'evaluated' not in st.session_state:
