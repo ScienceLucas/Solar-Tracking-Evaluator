@@ -1,6 +1,11 @@
 """
-app.py - Main Streamlit User Interface for AI Solar Tracker & Site Intelligence Auditor
-Congressional App Challenge Project
+===============================================================================
+PROJECT: AI Solar Tracker & Site Intelligence Auditor
+MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
+DESCRIPTION: Houses the U.S. simulation controls in the sidebar, the explicit 
+             'Run Simulation Model' button, live maps, temporal mode selectors,
+             metric cards, synchronized charts, and Tab 2 computer vision auditor.
+===============================================================================
 """
 
 import streamlit as st
@@ -8,6 +13,7 @@ import pandas as pd
 from utils import calculate_solar_physics, analyze_site_image
 from geopy.geocoders import Nominatim
 
+# Page Configuration
 st.set_page_config(
     page_title="AI Solar Tracker & Site Evaluator", 
     layout="wide", 
@@ -17,7 +23,7 @@ st.set_page_config(
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
 
-# --- SIDEBAR CONTROLS ---
+# --- SIDEBAR CONTROLS (DEDICATED TO TAB 1 SIMULATOR) ---
 st.sidebar.header("🌍 U.S. Simulation Controls")
 city_query_input = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
 nrel_api_key_input = st.sidebar.text_input("NREL API Key (Optional)", value="DEMO_KEY", type="password", help="Enter your free API key from developer.nrel.gov.")
@@ -31,7 +37,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_btn")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_btn_v4")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -52,7 +58,7 @@ configured_inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.
 st.sidebar.markdown("---")
 run_simulation_button = st.sidebar.button("🚀 Run Simulation Model", type="primary", use_container_width=True)
 
-# Session state management for the run button
+# Session State Management for Run Simulation Button
 if 'simulation_executed' not in st.session_state:
     st.session_state['simulation_executed'] = True
 
@@ -136,12 +142,12 @@ with tab_simulation:
 
 with tab_audit:
     st.header("Automated Computer Vision & Panel ROI Audit")
-    st.markdown("Upload site aerials, drone photos, or roof blueprints to execute the computer vision scan and Big 3 financial audit.")
+    st.markdown("Upload site aerials, drone photos, or roof blueprints. The computer vision engine evaluates pixel luminosity and foliage density to rank the **Big 3 Panel Types** for energy gain and structural wear resilience.")
     
     audit_col_left, audit_col_right = st.columns(2)
     with audit_col_left:
         uploaded_site_image_file = st.file_uploader("1. Upload Roof Blueprint, Drone Photo, or CAD File", type=["png", "jpg", "jpeg", "webp"])
-        manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC")
+        manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="If your photo lacks EXIF GPS metadata, enter the U.S. city where it was captured.")
         
         if uploaded_site_image_file:
             st.success(f"Successfully received: **{uploaded_site_image_file.name}**")
