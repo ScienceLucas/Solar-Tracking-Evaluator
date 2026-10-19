@@ -37,7 +37,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v6")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v7")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -51,7 +51,7 @@ except Exception:
 
 st.sidebar.markdown("---")
 array_panel_count = st.sidebar.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
-configured_tilt_angle = st.sidebar.slider("Panel Tilt Angle / Axis Limit (Degrees)", 0, 90, 31)
+configured_tilt_angle = st.sidebar.slider("Panel Tilt Angle / Fixed Tilt Surface (Degrees)", 0, 90, 31)
 configured_wind_cutoff = st.sidebar.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15)
 configured_inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
 
