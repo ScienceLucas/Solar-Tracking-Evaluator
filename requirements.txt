@@ -2,7 +2,7 @@ streamlit
 pandas
 numpy
 requests
-scikit-learn
-matplotlib
 pillow
 geopy
+matplotlib
+scikit-learn
