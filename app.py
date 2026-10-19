@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from geopy.geocoders import Nominatim
-from utils import calculate_solar_physics
+from utils import calculate_solar_physics, analyze_site_image
 
 # Page Configuration
 st.set_page_config(page_title="AI Solar Tracker Evaluator", layout="wide")
