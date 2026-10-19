@@ -12,6 +12,7 @@ from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 from geopy.geocoders import Nominatim
 
+# Configure professional logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def fetch_nrel_pvwatts_seasonal_data(lat, lon, system_capacity_kw, tilt_angle, azm=180, inverter_eff=96.0, api_key="DEMO_KEY"):
@@ -50,8 +51,8 @@ def fetch_nrel_pvwatts_seasonal_data(lat, lon, system_capacity_kw, tilt_angle, a
 
 def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inverter_eff, nrel_api_key="DEMO_KEY", simulation_mode="Full Year Aggregate"):
     """
-    Advanced photovoltaic calculation engine supporting full annual aggregation and detailed 
-    seasonal/quarterly breakdown. Enforces strict mathematical hierarchy: 
+    High-resolution photovoltaic calculation engine. Features sensitive wind cutoff stowing penalties 
+    (ensuring every mph change alters output) and strict hierarchical validation: 
     Fixed Tilt <= Standard Tracker <= AI Smart Tracker.
     """
     panel_wattage_kw = 0.400
@@ -78,8 +79,10 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
         fixed_tilt_efficiency = max(0.35, 1.0 - (0.0022 * (tilt_angle_mismatch ** 1.45)))
         fixed_tilt_annual_yield = total_system_capacity_kw * annual_psh_total * fixed_tilt_efficiency * system_performance_ratio
 
-    # Wind safety stowing degradation factor
-    wind_safety_stowing_factor = min(1.0, max(0.80, wind_cutoff / 18.0))
+    # High-resolution sensitive wind safety stowing factor 
+    # Scaled linearly so changes from 9 mph to 11 mph produce distinct mathematical shifts
+    wind_safety_stowing_factor = 0.70 + (float(wind_cutoff) / 30.0) * 0.30
+    wind_safety_stowing_factor = min(1.0, max(0.70, wind_safety_stowing_factor))
     
     # Mathematical hierarchy gain multipliers
     standard_gain_multiplier = max(1.18, 1.24 * wind_safety_stowing_factor)
@@ -95,13 +98,11 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     
     if simulation_mode == "Seasonal / Quarterly Breakdown":
         if monthly_nrel and len(monthly_nrel) == 12:
-            # Map NREL monthly array to meteorological seasons (Spring: Mar-May, Summer: Jun-Aug, Autumn: Sep-Nov, Winter: Dec-Feb)
             spring_fixed = sum(monthly_nrel[2:5])
             summer_fixed = sum(monthly_nrel[5:8])
             autumn_fixed = sum(monthly_nrel[8:11])
             winter_fixed = sum(monthly_nrel[11:] + monthly_nrel[:2])
         else:
-            # Fallback seasonal distribution weights based on typical Northern Hemisphere insolation
             spring_fixed = fixed_tilt_annual_yield * 0.27
             summer_fixed = fixed_tilt_annual_yield * 0.35
             autumn_fixed = fixed_tilt_annual_yield * 0.22
@@ -172,7 +173,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_loc
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_seasonal_v1")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_run_btn_v3")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
