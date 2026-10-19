@@ -2,8 +2,8 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Houses the U.S. simulation controls in the sidebar, the explicit 
-             'Run Simulation Model' button, live maps, temporal mode selectors,
+DESCRIPTION: Houses U.S. simulation controls in the sidebar, explicit 
+             'Run Simulation Model' execution, live maps, temporal mode selectors,
              metric cards, synchronized charts, and Tab 2 computer vision auditor.
 ===============================================================================
 """
@@ -37,7 +37,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_btn_v4")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v6")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -51,7 +51,7 @@ except Exception:
 
 st.sidebar.markdown("---")
 array_panel_count = st.sidebar.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
-configured_tilt_angle = st.sidebar.slider("Panel Tilt Angle (Degrees)", 0, 90, 31)
+configured_tilt_angle = st.sidebar.slider("Panel Tilt Angle / Axis Limit (Degrees)", 0, 90, 31)
 configured_wind_cutoff = st.sidebar.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15)
 configured_inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
 
@@ -100,7 +100,7 @@ with tab_simulation:
                 
                 standard_gain_pct = ((standard_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
                 ai_gain_pct = ((ai_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
-                motor_wear_reduction_pct = round(32.0 + (abs(latitude_val) * 0.1) + max(0, (20 - configured_wind_cutoff) * 0.3), 1)
+                motor_wear_reduction_pct = round(32.0 + (abs(latitude_val) * 0.1) + max(0, (25 - configured_wind_cutoff) * 0.4), 1)
 
                 metric_col1, metric_col2, metric_col3 = st.columns(3)
                 metric_col1.metric("Fixed Tilt Yield", f"{fixed_yield_val:,.1f} kWh")
@@ -108,7 +108,7 @@ with tab_simulation:
                 metric_col3.metric("AI Smart Tracker", f"{ai_yield_val:,.1f} kWh", f"{ai_gain_pct:+.1f}% vs Fixed")
 
                 sub_metric_col1, sub_metric_col2 = st.columns(2)
-                sub_metric_col1.metric("Estimated Motor Wear Reduced", f"{motor_wear_reduction_pct}%", "Gear fatigue saved")
+                sub_metric_col1.metric("Estimated Motor Wear Reduced", f"{motor_wear_reduction_pct}%", "Gear fatigue saved via AI")
                 sub_metric_col2.metric("Additional Clean Energy", f"{(ai_yield_val - fixed_yield_val):,.1f} kWh", "Net gain across array")
 
                 st.markdown("---")
