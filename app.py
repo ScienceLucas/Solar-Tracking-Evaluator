@@ -37,7 +37,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v8")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v9")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -96,13 +96,10 @@ with tab_simulation:
             )
             
             if simulation_mode == "Full Year Aggregate":
-                fixed_yield_val, standard_yield_val, ai_yield_val, _ = sim_results
+                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, _ = sim_results
                 
                 standard_gain_pct = ((standard_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
                 ai_gain_pct = ((ai_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
-                
-                # Continuous smooth motor wear calculation across the entire 5 to 30 range (no flatlining)
-                motor_wear_reduction_pct = round(44.0 - ((configured_wind_cutoff - 5.0) * (14.0 / 25.0)) + (abs(latitude_val) * 0.05), 1)
 
                 metric_col1, metric_col2, metric_col3 = st.columns(3)
                 metric_col1.metric("Fixed Tilt Yield", f"{fixed_yield_val:,.1f} kWh")
@@ -114,7 +111,6 @@ with tab_simulation:
                 sub_metric_col2.metric("Additional Clean Energy", f"{(ai_yield_val - fixed_yield_val):,.1f} kWh", "Net gain across array")
 
                 st.markdown("---")
-                # Numbered prefixes ensure correct physical ordering in Vega-Lite charts
                 chart_dataframe = pd.DataFrame({
                     "System Architecture": ["1. Fixed Tilt", "2. Standard Tracker", "3. AI Smart Tracker"],
                     "Annual Energy Output (kWh)": [fixed_yield_val, standard_yield_val, ai_yield_val]
@@ -123,7 +119,7 @@ with tab_simulation:
                 st.bar_chart(chart_dataframe)
                 
             else:
-                _, _, _, seasonal_dict = sim_results
+                _, _, _, motor_wear_reduction_pct, seasonal_dict = sim_results
                 st.markdown("##### 🍂 Quarterly Seasonal Energy Breakdown")
                 
                 seasonal_rows = []
