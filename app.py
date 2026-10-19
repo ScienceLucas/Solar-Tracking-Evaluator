@@ -129,13 +129,15 @@ with tab1:
 
         st.success(f"Evaluation complete for {location_label}! AI model successfully optimized tracking angles at {tilt_angle}° tilt under a {wind_cutoff} m/s wind threshold.")
 
-
 # ==========================================
 # TAB 2: SITE CONTEXT & FILE ANALYZER
 # ==========================================
 with tab2:
     st.subheader("🖼️ Site Photo, Blueprint & Context Analyzer")
     st.markdown("Upload site aerial imagery, roof blueprints, or CAD files alongside local physical notes to assess installation feasibility.")
+    
+    # Import image analysis function from utils if not already imported at top
+    from utils import analyze_site_image
     
     tab2_left, tab2_right = st.columns([1, 1], gap="large")
     
@@ -165,7 +167,9 @@ with tab2:
             height=120
         )
         
-        analyze_btn = st.button("🔍 Analyze Site Context", use_container_width=True)
+        analyze_btn = st.button("🔍 Analyze Site Context & Generate Report", use_container_width=True)
         
         if analyze_btn:
-            st.info(f"**Site Context Analysis complete for {surface_type}:**\n\n- **Shading Risk:** Moderate (Factored into morning AI angle tilt adjust).\n- **Terrain Match:** Excellent fit for single-axis tracking motor mounts.\n- **Recommended Wind Cutoff:** 11.5 m/s given surface profile.")
+            with st.spinner("Running computer vision pixel analysis & generating solar efficiency report..."):
+                report_output = analyze_site_image(uploaded_file, surface_type, site_notes)
+                st.markdown(report_output)
