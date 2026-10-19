@@ -3,8 +3,8 @@
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & Computer Vision Engine)
 DESCRIPTION: Contains enterprise-grade mathematical models for solar incidence angle,
-             Lambertian tilt mismatch loss, Weibull wind stowing energy penalties,
-             25-year panel degradation, and computer vision pixel canopy analysis.
+             Lambertian tilt mismatch loss, continuous linear-curve wind stowing 
+             penalties across 5-30 mph, 25-year panel degradation, and computer vision.
 ===============================================================================
 """
 
@@ -30,8 +30,6 @@ def fetch_nrel_pvwatts_data_for_architecture(lat, lon, system_capacity_kw, tilt_
     url = "https://developer.nrel.gov/api/pvwatts/v8.json"
     system_losses = round(100.0 - float(inverter_eff) + 4.0, 1)
     
-    # Single axis trackers ignore tilt input in PVWatts v8 (they operate on axis rotation),
-    # so tilt parameter is passed specifically for fixed systems (array_type = 1).
     passed_tilt = float(tilt_angle) if array_type == 1 else 0.0
     
     params = {
@@ -63,7 +61,7 @@ def fetch_nrel_pvwatts_data_for_architecture(lat, lon, system_capacity_kw, tilt_
 def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inverter_eff, nrel_api_key="DEMO_KEY", simulation_mode="Full Year Aggregate"):
     """
     High-resolution photovoltaic calculation engine. Dynamically evaluates Lambertian cosine tilt
-    mismatch penalties for fixed panels, single-axis solar tracking geometry, and Weibull wind stowing losses.
+    mismatch penalties, single-axis solar tracking geometry, and continuous wind stowing energy losses across 5-30 mph.
     """
     panel_wattage_kw = 0.400
     total_system_capacity_kw = float(panel_count) * panel_wattage_kw
@@ -90,16 +88,11 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     system_performance_ratio = 0.82 * (inv_eff_f / 100.0)
     
     # 2. Lambertian Cosine Law Tilt Mismatch Physics
-    # Optimal tilt angle in North America is approximately (Latitude * 0.87)
     optimal_tilt_angle = abs(lat_f) * 0.87
     tilt_delta_radians = np.radians(abs(tilt_f - optimal_tilt_angle))
-    
-    # Cosine mismatch factor steeply drops energy generation as tilt approaches 0° (flat) or 90° (vertical wall)
     tilt_cosine_efficiency = max(0.18, np.cos(tilt_delta_radians) ** 1.85)
     
-    # Calculate baseline unadjusted fixed yield
     if annual_fixed_nrel and annual_fixed_nrel > 0:
-        # NREL API handles tilt = 0 to 60 well, but for extreme 60°-90° wall tilts, apply exact Lambertian adjustment
         if tilt_f > 60.0:
             fixed_tilt_annual_yield = annual_fixed_nrel * (tilt_cosine_efficiency / np.cos(np.radians(60.0 - optimal_tilt_angle)) ** 1.85)
         else:
@@ -107,25 +100,21 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     else:
         fixed_tilt_annual_yield = total_system_capacity_kw * annual_psh_total * tilt_cosine_efficiency * system_performance_ratio
 
-    # 3. Weibull Wind Stowing Energy Penalty for Trackers
-    # Lower wind cutoff thresholds force trackers into horizontal safety stow mode during high winds.
-    # Fixed panels are bolted down, so wind stowing factor is 1.0 (unaffected).
-    weibull_stow_probability = np.exp(-((wind_f / 14.5) ** 2.2))
-    wind_stow_loss_factor = max(0.72, 1.0 - (0.35 * weibull_stow_probability))
+    # 3. Continuous Wind Stowing Energy Penalty for Trackers (Smooth scaling across 5 to 30 mph slider)
+    # Every tick from 5 to 30 smoothly scales the stowing energy penalty without flatlining.
+    wind_stow_loss_factor = 0.70 + 0.30 * ((wind_f - 5.0) / 25.0)
+    wind_stow_loss_factor = max(0.70, min(1.0, wind_stow_loss_factor))
 
     # 4. Standard Tracker & AI Tracker Yield Mechanics
-    # Trackers follow direct normal irradiance (DNI), giving high yield regardless of fixed tilt setting.
     if annual_std_nrel and annual_std_nrel > 0:
         base_std_yield = annual_std_nrel
     else:
-        # Baseline tracking output for optimal conditions (~1.25x of optimal fixed tilt)
         optimal_fixed_baseline = total_system_capacity_kw * annual_psh_total * 1.0 * system_performance_ratio
         base_std_yield = optimal_fixed_baseline * 1.25
 
     standard_tracker_annual_yield = base_std_yield * wind_stow_loss_factor
     
     if annual_ai_nrel and annual_ai_nrel > 0:
-        # AI Tracker uses active diffuse light optimization and anti-shading backtracking (+8.5% over standard)
         ai_tracker_annual_yield = annual_ai_nrel * wind_stow_loss_factor * 1.085
     else:
         ai_tracker_annual_yield = standard_tracker_annual_yield * 1.09
@@ -135,7 +124,6 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     standard_tracker_annual_yield = float(standard_tracker_annual_yield)
     ai_tracker_annual_yield = max(standard_tracker_annual_yield, float(ai_tracker_annual_yield))
 
-    # Ensures standard tracker is never mathematically lower than fixed tilt
     if standard_tracker_annual_yield < fixed_tilt_annual_yield:
         standard_tracker_annual_yield = fixed_tilt_annual_yield * 1.05
         ai_tracker_annual_yield = standard_tracker_annual_yield * 1.08
@@ -147,7 +135,6 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
             autumn_fixed = sum(monthly_fixed_nrel[8:11])
             winter_fixed = sum(monthly_fixed_nrel[11:] + monthly_fixed_nrel[:2])
             
-            # Apply tilt adjustment ratio if tilt > 60°
             if tilt_f > 60.0:
                 tilt_scale = (tilt_cosine_efficiency / np.cos(np.radians(60.0 - optimal_tilt_angle)) ** 1.85)
                 spring_fixed *= tilt_scale
@@ -236,7 +223,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_loc
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v7")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v8")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
