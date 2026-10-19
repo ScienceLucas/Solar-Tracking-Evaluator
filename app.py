@@ -4,7 +4,8 @@ PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
 DESCRIPTION: Houses U.S. simulation controls in the sidebar, explicit 
              'Run Simulation Model' execution, live maps, temporal mode selectors,
-             metric cards, synchronized charts, and Tab 2 computer vision auditor.
+             metric cards, synchronized charts, wind cutoff comparison notifications,
+             and Tab 2 computer vision auditor.
 ===============================================================================
 """
 
@@ -13,7 +14,7 @@ import pandas as pd
 from utils import calculate_solar_physics, analyze_site_image
 from geopy.geocoders import Nominatim
 
-# Page Configuration
+# Page Configuration & Layout Setup
 st.set_page_config(
     page_title="AI Solar Tracker & Site Evaluator", 
     layout="wide", 
@@ -37,7 +38,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v9")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v11")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -58,14 +59,14 @@ configured_inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.
 st.sidebar.markdown("---")
 run_simulation_button = st.sidebar.button("🚀 Run Simulation Model", type="primary", use_container_width=True)
 
-# Session State Management for Run Simulation Button
+# Session State Management for Run Simulation Button Execution
 if 'simulation_executed' not in st.session_state:
     st.session_state['simulation_executed'] = True
 
 if run_simulation_button:
     st.session_state['simulation_executed'] = True
 
-# --- TABS ---
+# --- PRIMARY APP TABS ---
 tab_simulation, tab_audit = st.tabs(["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: Site Image & Panel ROI Audit"])
 
 with tab_simulation:
@@ -96,7 +97,7 @@ with tab_simulation:
             )
             
             if simulation_mode == "Full Year Aggregate":
-                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, _ = sim_results
+                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, seasonal_dict, wind_cutoff_comparison_message = sim_results
                 
                 standard_gain_pct = ((standard_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
                 ai_gain_pct = ((ai_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
@@ -110,7 +111,10 @@ with tab_simulation:
                 sub_metric_col1.metric("Estimated Motor Wear Reduced", f"{motor_wear_reduction_pct}%", "Gear fatigue saved via AI")
                 sub_metric_col2.metric("Additional Clean Energy", f"{(ai_yield_val - fixed_yield_val):,.1f} kWh", "Net gain across array")
 
+                # Display the explicit wind cutoff comparative message requested by the user
                 st.markdown("---")
+                st.info(f"🌬️ **Wind Speed Cutoff Impact Analysis (Full Year Mode):**\n\n{wind_cutoff_comparison_message}")
+
                 chart_dataframe = pd.DataFrame({
                     "System Architecture": ["1. Fixed Tilt", "2. Standard Tracker", "3. AI Smart Tracker"],
                     "Annual Energy Output (kWh)": [fixed_yield_val, standard_yield_val, ai_yield_val]
@@ -119,7 +123,7 @@ with tab_simulation:
                 st.bar_chart(chart_dataframe)
                 
             else:
-                _, _, _, motor_wear_reduction_pct, seasonal_dict = sim_results
+                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, seasonal_dict, wind_cutoff_comparison_message = sim_results
                 st.markdown("##### 🍂 Quarterly Seasonal Energy Breakdown")
                 
                 seasonal_rows = []
@@ -133,6 +137,10 @@ with tab_simulation:
                 
                 seasonal_df = pd.DataFrame(seasonal_rows).set_index("Season")
                 st.dataframe(seasonal_df, use_container_width=True)
+
+                # Display the explicit wind cutoff comparative message for seasonal mode as well
+                st.markdown("---")
+                st.info(f"🍂 **Wind Speed Cutoff Impact Analysis (Seasonal Mode):**\n\n{wind_cutoff_comparison_message}")
                 
                 st.markdown("---")
                 st.bar_chart(seasonal_df)
