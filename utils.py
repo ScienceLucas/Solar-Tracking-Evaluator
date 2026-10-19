@@ -24,18 +24,6 @@ def fetch_nrel_pvwatts_seasonal_data(lat, lon, system_capacity_kw, tilt_angle, a
     """
     Queries the official NREL PVWatts v8 API to retrieve monthly and annual AC energy yields,
     allowing for precise seasonal decomposition across Spring, Summer, Autumn, and Winter.
-    
-    Parameters:
-        lat (float): Latitude coordinate.
-        lon (float): Longitude coordinate.
-        system_capacity_kw (float): Total DC system rating in kilowatts.
-        tilt_angle (float): Panel tilt angle in degrees.
-        azm (float): Azimuth angle (default 180 South).
-        inverter_eff (float): Inverter conversion efficiency percentage.
-        api_key (str): NREL developer API key.
-        
-    Returns:
-        tuple: (annual_ac_yield, monthly_ac_yield_list) or (None, None) on failure.
     """
     url = "https://developer.nrel.gov/api/pvwatts/v8.json"
     system_losses = round(100.0 - float(inverter_eff) + 4.0, 1)
@@ -69,21 +57,7 @@ def fetch_nrel_pvwatts_seasonal_data(lat, lon, system_capacity_kw, tilt_angle, a
 def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inverter_eff, nrel_api_key="DEMO_KEY", simulation_mode="Full Year Aggregate"):
     """
     High-resolution photovoltaic calculation engine. Features sensitive, continuous wind cutoff 
-    stowing penalties (ensuring every single mph change from 9 to 11 alters output) and strict 
-    hierarchical validation: Fixed Tilt <= Standard Tracker <= AI Smart Tracker.
-    
-    Parameters:
-        lat (float): Resolved latitude.
-        lon (float): Resolved longitude.
-        tilt_angle (float): User-defined panel tilt angle.
-        wind_cutoff (float): Wind speed safety cutoff threshold in mph.
-        panel_count (int): Number of panels in the array.
-        inverter_eff (float): Inverter efficiency percentage.
-        nrel_api_key (str): Optional NREL developer API key.
-        simulation_mode (str): 'Full Year Aggregate' or 'Seasonal / Quarterly Breakdown'.
-        
-    Returns:
-        tuple: Energy yields and optional seasonal dictionary.
+    stowing penalties and strict hierarchical validation: Fixed Tilt <= Standard Tracker <= AI Smart Tracker.
     """
     # 1. Total System Capacity based on standard 400W commercial panel rating
     panel_wattage_kw = 0.400
@@ -111,7 +85,6 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
         fixed_tilt_annual_yield = total_system_capacity_kw * annual_psh_total * fixed_tilt_efficiency * system_performance_ratio
 
     # 3. High-resolution sensitive wind safety stowing factor using an exponential decay curve.
-    # This guarantees that a change from 9 mph to 11 mph produces a distinct, smooth mathematical shift.
     wind_val = float(wind_cutoff)
     wind_safety_stowing_factor = 0.72 + 0.28 * (1.0 - np.exp(-wind_val / 10.0))
     wind_safety_stowing_factor = min(1.0, max(0.70, wind_safety_stowing_factor))
@@ -194,13 +167,15 @@ def extract_gps_from_image(image_file_object):
 
 def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_location="", nrel_api_key="DEMO_KEY"):
     """
-    Performs comprehensive computer vision pixel analysis (evaluating luminosity and green canopy 
-    foliage density) combined with U.S. geocoding to output a precise 25-year Big 3 financial and wear audit.
+    Performs comprehensive computer vision pixel analysis combined with U.S. geocoding 
+    to output a precise 25-year Big 3 financial and wear audit.
     """
     if uploaded_file is None:
         return "⚠️ No image uploaded. Please upload a site layout or aerial photo in Step 1 above to execute the computer vision and financial audit."
     
     try:
+        # Reset file stream pointer to ensure PIL reads uploaded buffer cleanly
+        uploaded_file.seek(0)
         img = Image.open(uploaded_file)
         img_width, img_height = img.size
         img_format_name = img.format or "Standard Raster Image"
