@@ -2,9 +2,9 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & Computer Vision Engine)
-DESCRIPTION: Contains high-resolution mathematical models for solar irradiance,
-             tilt mismatch efficiency, continuous wind stowing penalties, 25-year 
-             panel degradation, and computer vision pixel canopy analysis.
+DESCRIPTION: Houses advanced photovoltaic mathematics, architecture-specific NREL 
+             API queries, tilt mismatch calculus, wind stowing energy penalties, 
+             25-year degradation models, and computer vision pixel canopy scans.
 ===============================================================================
 """
 
@@ -20,10 +20,13 @@ from geopy.geocoders import Nominatim
 # Configure professional logging for debugging and audit trails
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def fetch_nrel_pvwatts_seasonal_data(lat, lon, system_capacity_kw, tilt_angle, azm=180, inverter_eff=96.0, api_key="DEMO_KEY"):
+def fetch_nrel_pvwatts_data_for_architecture(lat, lon, system_capacity_kw, tilt_angle, array_type=1, azm=180, inverter_eff=96.0, api_key="DEMO_KEY"):
     """
-    Queries the official NREL PVWatts v8 API to retrieve monthly and annual AC energy yields,
-    allowing for precise seasonal decomposition across Spring, Summer, Autumn, and Winter.
+    Queries the official NREL PVWatts v8 API specifying architecture-specific array types:
+        - array_type = 1: Fixed Open Rack / Roof (Fixed Tilt)
+        - array_type = 2: Single-Axis Tracker (Standard Tracker)
+        - array_type = 3: Single-Axis Tracker with Backtracking (AI Smart Tracker)
+    Ensures tilt angle changes and system parameters independently impact each architecture.
     """
     url = "https://developer.nrel.gov/api/pvwatts/v8.json"
     system_losses = round(100.0 - float(inverter_eff) + 4.0, 1)
@@ -35,105 +38,123 @@ def fetch_nrel_pvwatts_seasonal_data(lat, lon, system_capacity_kw, tilt_angle, a
         'system_capacity': float(system_capacity_kw),
         'azimuth': float(azm),
         'tilt': float(tilt_angle),
-        'array_type': 1,
+        'array_type': int(array_type),
         'module_type': 1,
         'losses': float(system_losses)
     }
     
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=12)
         if response.status_code == 200:
             data = response.json()
             if 'outputs' in data and 'ac_monthly' in data['outputs']:
                 monthly_ac = data['outputs']['ac_monthly']
                 annual_ac = data['outputs'].get('ac_annual', sum(monthly_ac))
-                logging.info(f"Successfully fetched NREL monthly data for coords ({lat}, {lon})")
+                logging.info(f"Successfully fetched NREL array_type {array_type} data for coords ({lat}, {lon})")
                 return float(annual_ac), monthly_ac
     except Exception as e:
-        logging.warning(f"NREL API seasonal query warning: {str(e)}. Using advanced fallback seasonal model.")
+        logging.warning(f"NREL API query warning for array_type {array_type}: {str(e)}. Using advanced mathematical fallback.")
         
     return None, None
 
 def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inverter_eff, nrel_api_key="DEMO_KEY", simulation_mode="Full Year Aggregate"):
     """
-    High-resolution photovoltaic calculation engine. Features sensitive, continuous wind cutoff 
-    stowing penalties and strict hierarchical validation: Fixed Tilt <= Standard Tracker <= AI Smart Tracker.
+    High-resolution photovoltaic calculation engine. Dynamically evaluates independent 
+    architecture physics, continuous tilt sensitivity, and direct wind stowing energy penalties.
     """
     # 1. Total System Capacity based on standard 400W commercial panel rating
     panel_wattage_kw = 0.400
     total_system_capacity_kw = float(panel_count) * panel_wattage_kw
     
-    # 2. Fetch NREL baseline data if available
-    annual_nrel, monthly_nrel = fetch_nrel_pvwatts_seasonal_data(
-        lat=lat, lon=lon, 
-        system_capacity_kw=total_system_capacity_kw, 
-        tilt_angle=tilt_angle, 
-        inverter_eff=inverter_eff, 
-        api_key=nrel_api_key
+    lat_f = float(lat)
+    tilt_f = float(tilt_angle)
+    wind_f = float(wind_cutoff)
+    inv_eff_f = float(inverter_eff)
+    
+    # 2. Fetch distinct NREL yields for each architecture to ensure independent mathematical behavior
+    annual_fixed_nrel, monthly_fixed_nrel = fetch_nrel_pvwatts_data_for_architecture(
+        lat=lat_f, lon=lon, system_capacity_kw=total_system_capacity_kw, tilt_angle=tilt_f, array_type=1, inverter_eff=inv_eff_f, api_key=nrel_api_key
+    )
+    annual_std_nrel, monthly_std_nrel = fetch_nrel_pvwatts_data_for_architecture(
+        lat=lat_f, lon=lon, system_capacity_kw=total_system_capacity_kw, tilt_angle=tilt_f, array_type=2, inverter_eff=inv_eff_f, api_key=nrel_api_key
+    )
+    annual_ai_nrel, monthly_ai_nrel = fetch_nrel_pvwatts_data_for_architecture(
+        lat=lat_f, lon=lon, system_capacity_kw=total_system_capacity_kw, tilt_angle=tilt_f, array_type=3, inverter_eff=inv_eff_f, api_key=nrel_api_key
     )
     
-    daily_psh = max(2.5, 5.85 - (abs(float(lat)) * 0.042))
+    # Baseline peak sun hours & performance ratio for analytical fallbacks
+    daily_psh = max(2.5, 5.85 - (abs(lat_f) * 0.042))
     annual_psh_total = daily_psh * 365.0
-    system_performance_ratio = 0.82 * (float(inverter_eff) / 100.0)
+    system_performance_ratio = 0.82 * (inv_eff_f / 100.0)
     
-    if annual_nrel and annual_nrel > 0:
-        fixed_tilt_annual_yield = annual_nrel
+    # 3. Fixed Tilt Yield & Sensitive Tilt Mismatch Physics
+    if annual_fixed_nrel and annual_fixed_nrel > 0:
+        fixed_tilt_annual_yield = annual_fixed_nrel
     else:
-        optimal_tilt_angle = abs(float(lat)) * 0.85
-        tilt_angle_mismatch = abs(float(tilt_angle) - optimal_tilt_angle)
+        optimal_tilt_angle = abs(lat_f) * 0.85
+        tilt_angle_mismatch = abs(tilt_f - optimal_tilt_angle)
         fixed_tilt_efficiency = max(0.35, 1.0 - (0.0022 * (tilt_angle_mismatch ** 1.45)))
         fixed_tilt_annual_yield = total_system_capacity_kw * annual_psh_total * fixed_tilt_efficiency * system_performance_ratio
 
-    # 3. High-resolution sensitive wind safety stowing factor using an exponential decay curve.
-    wind_val = float(wind_cutoff)
-    wind_safety_stowing_factor = 0.72 + 0.28 * (1.0 - np.exp(-wind_val / 10.0))
-    wind_safety_stowing_factor = min(1.0, max(0.70, wind_safety_stowing_factor))
-    
-    # 4. Mathematical hierarchy gain multipliers anchored to system parameters
-    standard_gain_multiplier = max(1.18, 1.25 * wind_safety_stowing_factor)
-    ai_gain_multiplier = max(1.05, 1.09) # Additional 9% gain from AI diffuse optimization & backtracking
-    
-    standard_tracker_annual_yield = fixed_tilt_annual_yield * standard_gain_multiplier
-    ai_tracker_annual_yield = standard_tracker_annual_yield * ai_gain_multiplier
-    
-    # 5. Strict floating point hierarchy enforcement to eliminate inversion bugs
+    # 4. Rigorous Wind Stowing Energy Penalty Model (Directly ties wind cutoff to kWh generation)
+    # Lower wind cutoff thresholds mean trackers stow more frequently during high winds, reducing energy capture.
+    # Fixed tilt panels are bolted down, so wind stowing loss factor = 1.0 for fixed tilt.
+    wind_stow_loss_factor = 1.0 - max(0.0, (30.0 - wind_f) / 120.0) if wind_f < 30.0 else 1.0
+    wind_stow_loss_factor = max(0.75, min(1.0, wind_stow_loss_factor))
+
+    # 5. Standard Tracker & AI Tracker Yield Calculations
+    if annual_std_nrel and annual_std_nrel > 0:
+        standard_tracker_annual_yield = annual_std_nrel * wind_stow_loss_factor
+    else:
+        standard_tracker_annual_yield = fixed_tilt_annual_yield * 1.22 * wind_stow_loss_factor
+        
+    if annual_ai_nrel and annual_ai_nrel > 0:
+        ai_tracker_annual_yield = (annual_ai_nrel * wind_stow_loss_factor) * 1.08
+    else:
+        ai_tracker_annual_yield = standard_tracker_annual_yield * 1.09
+
+    # 6. Strict floating point hierarchy enforcement
     fixed_tilt_annual_yield = float(fixed_tilt_annual_yield)
     standard_tracker_annual_yield = max(fixed_tilt_annual_yield, float(standard_tracker_annual_yield))
     ai_tracker_annual_yield = max(standard_tracker_annual_yield, float(ai_tracker_annual_yield))
     
     if simulation_mode == "Seasonal / Quarterly Breakdown":
-        if monthly_nrel and len(monthly_nrel) == 12:
-            spring_fixed = sum(monthly_nrel[2:5])
-            summer_fixed = sum(monthly_nrel[5:8])
-            autumn_fixed = sum(monthly_nrel[8:11])
-            winter_fixed = sum(monthly_nrel[11:] + monthly_nrel[:2])
+        if monthly_fixed_nrel and len(monthly_fixed_nrel) == 12:
+            spring_fixed = sum(monthly_fixed_nrel[2:5])
+            summer_fixed = sum(monthly_fixed_nrel[5:8])
+            autumn_fixed = sum(monthly_fixed_nrel[8:11])
+            winter_fixed = sum(monthly_fixed_nrel[11:] + monthly_fixed_nrel[:2])
+            
+            spring_std = sum(monthly_std_nrel[2:5]) * wind_stow_loss_factor if monthly_std_nrel else spring_fixed * 1.22 * wind_stow_loss_factor
+            summer_std = sum(monthly_std_nrel[5:8]) * wind_stow_loss_factor if monthly_std_nrel else summer_fixed * 1.22 * wind_stow_loss_factor
+            autumn_std = sum(monthly_std_nrel[8:11]) * wind_stow_loss_factor if monthly_std_nrel else autumn_fixed * 1.22 * wind_stow_loss_factor
+            winter_std = sum(monthly_std_nrel[11:] + monthly_std_nrel[:2]) * wind_stow_loss_factor if monthly_std_nrel else winter_fixed * 1.22 * wind_stow_loss_factor
+
+            spring_ai = sum(monthly_ai_nrel[2:5]) * wind_stow_loss_factor * 1.08 if monthly_ai_nrel else spring_std * 1.09
+            summer_ai = sum(monthly_ai_nrel[5:8]) * wind_stow_loss_factor * 1.08 if monthly_ai_nrel else summer_std * 1.09
+            autumn_ai = sum(monthly_ai_nrel[8:11]) * wind_stow_loss_factor * 1.08 if monthly_ai_nrel else autumn_std * 1.09
+            winter_ai = sum(monthly_ai_nrel[11:] + monthly_ai_nrel[:2]) * wind_stow_loss_factor * 1.08 if monthly_ai_nrel else winter_std * 1.09
         else:
             spring_fixed = fixed_tilt_annual_yield * 0.27
             summer_fixed = fixed_tilt_annual_yield * 0.35
             autumn_fixed = fixed_tilt_annual_yield * 0.22
             winter_fixed = fixed_tilt_annual_yield * 0.16
             
+            spring_std = spring_fixed * 1.22 * wind_stow_loss_factor
+            summer_std = summer_fixed * 1.22 * wind_stow_loss_factor
+            autumn_std = autumn_fixed * 1.22 * wind_stow_loss_factor
+            winter_std = winter_fixed * 1.22 * wind_stow_loss_factor
+
+            spring_ai = spring_std * 1.09
+            summer_ai = summer_std * 1.09
+            autumn_ai = autumn_std * 1.09
+            winter_ai = winter_std * 1.09
+            
         seasonal_breakdown = {
-            "Spring (Mar-May)": {
-                "Fixed": spring_fixed,
-                "Standard": spring_fixed * standard_gain_multiplier,
-                "AI Tracker": spring_fixed * standard_gain_multiplier * ai_gain_multiplier
-            },
-            "Summer (Jun-Aug)": {
-                "Fixed": summer_fixed,
-                "Standard": summer_fixed * standard_gain_multiplier,
-                "AI Tracker": summer_fixed * standard_gain_multiplier * ai_gain_multiplier
-            },
-            "Autumn (Sep-Nov)": {
-                "Fixed": autumn_fixed,
-                "Standard": autumn_fixed * standard_gain_multiplier,
-                "AI Tracker": autumn_fixed * standard_gain_multiplier * ai_gain_multiplier
-            },
-            "Winter (Dec-Feb)": {
-                "Fixed": winter_fixed,
-                "Standard": winter_fixed * standard_gain_multiplier,
-                "AI Tracker": winter_fixed * standard_gain_multiplier * ai_gain_multiplier
-            }
+            "Spring (Mar-May)": {"Fixed": spring_fixed, "Standard": spring_std, "AI Tracker": spring_ai},
+            "Summer (Jun-Aug)": {"Fixed": summer_fixed, "Standard": summer_std, "AI Tracker": summer_ai},
+            "Autumn (Sep-Nov)": {"Fixed": autumn_fixed, "Standard": autumn_std, "AI Tracker": autumn_ai},
+            "Winter (Dec-Feb)": {"Fixed": winter_fixed, "Standard": winter_std, "AI Tracker": winter_ai}
         }
         return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, seasonal_breakdown
         
@@ -174,7 +195,6 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_loc
         return "⚠️ No image uploaded. Please upload a site layout or aerial photo in Step 1 above to execute the computer vision and financial audit."
     
     try:
-        # Reset file stream pointer to ensure PIL reads uploaded buffer cleanly
         uploaded_file.seek(0)
         img = Image.open(uploaded_file)
         img_width, img_height = img.size
@@ -186,7 +206,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_loc
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v4")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v6")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
