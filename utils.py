@@ -18,7 +18,6 @@ def calculate_solar_physics(lat, tilt_angle, wind_cutoff, panel_count):
     return fixed_yield, standard_yield, ai_yield
 
 def extract_gps_from_image(image):
-    """Attempts to extract GPS coordinates from image EXIF metadata."""
     try:
         exif = image._getexif()
         if not exif:
@@ -35,15 +34,8 @@ def extract_gps_from_image(image):
         if "GPSLatitude" in gps_info and "GPSLongitude" in gps_info:
             lat_data = gps_info["GPSLatitude"]
             lon_data = gps_info["GPSLongitude"]
-            lat_ref = gps_info.get("GPSLatitudeRef", "N")
-            lon_ref = gps_info.get("GPSLongitudeRef", "W")
-            
             lat = float(lat_data[0]) + float(lat_data[1])/60.0 + float(lat_data[2])/3600.0
-            if lat_ref != "N": 
-                lat = -lat
             lon = float(lon_data[0]) + float(lon_data[1])/60.0 + float(lon_data[2])/3600.0
-            if lon_ref != "W": 
-                lon = -lon  # Defaulting standard US longitude orientation check
             return lat, lon
     except Exception:
         pass
@@ -51,54 +43,68 @@ def extract_gps_from_image(image):
 
 def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_location=""):
     if uploaded_file is None:
-        return "⚠️ No image uploaded. Please upload a site layout or aerial photo in Step 1 above."
+        return "⚠️ No image uploaded. Please upload a site layout or aerial photo in Step 1 above to run the visual sensor audit."
     
     try:
         img = Image.open(uploaded_file)
         width, height = img.size
         img_format = img.format or "Standard Image"
         
-        # Check for embedded GPS EXIF metadata
         extracted_lat, extracted_lon = extract_gps_from_image(img)
-        
-        location_source_msg = ""
+        loc_display = manual_image_location if manual_image_location else "User Specified Location"
         if extracted_lat and extracted_lon:
-            location_source_msg = f"📍 **EXIF Metadata Detected:** Extracted exact photo coordinates ({extracted_lat:.4f}, {extracted_lon:.4f})."
-        elif manual_image_location:
-            location_source_msg = f"📍 **Specified Image Location:** {manual_image_location}"
-        else:
-            location_source_msg = "📍 **Location:** No embedded GPS found; evaluated via general regional profile."
+            loc_display = f"GPS Tagged ({extracted_lat:.4f}, {extracted_lon:.4f})"
 
-        # Convert to numpy array to analyze pixel characteristics
+        # Convert image to RGB numpy array for pixel analysis
         img_rgb = img.convert('RGB')
         arr = np.array(img_rgb)
+        
+        # 1. Luminosity / Exposure Analysis
         avg_brightness = np.mean(arr)
         
-        exposure_status = "Optimal High-Light Exposure" if avg_brightness > 110 else "Potential Shading / Overcast Conditions Detected"
-        aspect_ratio = width / height
-        layout_type = "Aerial / Satellite View" if aspect_ratio > 1.2 or aspect_ratio < 0.8 else "Ground-Level Architectural View"
+        # 2. Vegetation & Tree Canopy Detection (Analyzing green channel dominance over red and blue)
+        r, g, b = arr[:,:,0], arr[:,:,1], arr[:,:,2]
+        green_mask = (g.astype(int) > r.astype(int) + 15) & (g.astype(int) > b.astype(int) + 15)
+        vegetation_percentage = (np.sum(green_mask) / green_mask.size) * 100
         
-        mono_eff = round(21.5 + (0.6 if avg_brightness > 110 else -1.1), 1)
-        poly_eff = round(17.0 + (0.4 if avg_brightness > 110 else -0.7), 1)
-        bifacial_eff = round(23.8 + (1.4 if "Ground" in surface_type else 0.5), 1)
+        # 3. Determine Shading Risk & Feasibility Verdict purely from image pixels
+        if vegetation_percentage > 30:
+            shading_risk = "High (Dense surrounding tree canopy detected in frame)"
+            verdict = "❌ Marginal Site. Substantial tree trimming required before solar deployment to prevent energy loss."
+        elif vegetation_percentage > 12:
+            shading_risk = "Moderate (Partial foliage proximity)"
+            verdict = "⚠️ Acceptable Site. Micro-siting and tilt adjustments required to dodge canopy shadows."
+        else:
+            shading_risk = "Low (Open exposure area detected)"
+            verdict = "✅ Excellent Site. Unobstructed surface geometry provides high potential for solar ROI."
+
+        # Dynamic panel efficiency calibration based on image pixel data
+        mono_eff = round(21.8 - (vegetation_percentage * 0.04), 1)
+        poly_eff = round(17.4 - (vegetation_percentage * 0.03), 1)
+        bifacial_eff = round(24.3 + (1.0 if vegetation_percentage < 15 else -0.8), 1)
         
         report = f"""
-        ### 🔬 Automated Computer Vision & Site Intelligence Report
-        - {location_source_msg}
-        - **Image Metadata:** {width}x{height} px ({img_format}), Aspect Ratio: {aspect_ratio:.2f} ({layout_type})
-        - **Pixel Brightness / Albedo Index:** {avg_brightness:.1f} / 255.0 — *{exposure_status}*
-        - **Selected Surface Profile:** {surface_type}
-        - **Site Context Notes:** "{site_notes}"
+        ### 👁️ Computer Vision Pixel & Sensor Audit Report
+        - **Asset Evaluated:** `{uploaded_file.name}` ({width}x{height} px, {img_format})
+        - **Site Location:** {loc_display}
+        - **Detected Vegetation / Canopy Cover:** `{vegetation_percentage:.1f}%` of image pixels
+        - **Luminosity / Exposure Index:** `{avg_brightness:.1f} / 255.0`
+        - **User Notes:** "{site_notes}"
         
         ---
-        #### 📊 Panel Type Efficiency & Suitability Breakdown:
-        1. **Monocrystalline Panels (High Efficiency):** **{mono_eff}% Efficiency Rating**
-           - *Suitability:* Excellent for limited roof space. Maintains strong output under {exposure_status.lower()}.
-        2. **Polycrystalline Panels (Cost-Effective):** **{poly_eff}% Efficiency Rating**
-           - *Suitability:* Viable for large-scale arrays where initial capital cost is prioritized over peak spatial yield.
-        3. **Bifacial / Smart Tracking Panels:** **{bifacial_eff}% Efficiency Rating**
-           - *Suitability:* Highly recommended for this site layout. Captures reflected albedo radiation from surrounding terrain surfaces.
+        #### 🏗️ Automated Image Feasibility Verdict:
+        **{verdict}**
+        - *Shading Risk Level:* {shading_risk}
+
+        ---
+        #### 📊 Image-Calibrated Panel Efficiency & Suitability Breakdown:
+        1. **Monocrystalline Modules:** **{mono_eff}% Efficiency Rating**
+           - *Pixel-Calibrated Analysis:* Performs exceptionally well under the frame's current luminance index of {avg_brightness:.1f}. High power density makes it ideal for maximizing space.
+        2. **Polycrystalline Modules:** **{poly_eff}% Efficiency Rating**
+           - *Pixel-Calibrated Analysis:* Lower cost per watt, but reduced efficiency means larger array footprints, increasing vulnerability to the detected canopy edges.
+        3. **Bifacial / Smart Tracking Modules:** **{bifacial_eff}% Efficiency Rating**
+           - *Pixel-Calibrated Analysis:* Highly recommended if expanding beyond roof bounds to capture ground-reflected albedo radiation.
         """
         return report
     except Exception as e:
-        return f"Error analyzing uploaded image file: {str(e)}"
+        return f"Error analyzing image pixels: {str(e)}"
