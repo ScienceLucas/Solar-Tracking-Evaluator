@@ -8,48 +8,49 @@ st.set_page_config(page_title="AI Solar Tracker & Site Evaluator", layout="wide"
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
 
-# --- CLEAN TABBED INTERFACE (NO SIDEBAR CLUTTER ON TAB 2) ---
+# --- SIDEBAR CONTROLS (DEDICATED EXCLUSIVELY TO TAB 1 SIMULATOR) ---
+st.sidebar.header("🌍 U.S. Simulation Controls")
+city_query = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
+
+lat, lon = 35.4858, -80.9038
+location_label = "Cornelius, North Carolina"
+try:
+    geolocator = Nominatim(user_agent="solar_app_sidebar_final")
+    loc = geolocator.geocode(city_query + ", USA")
+    if loc:
+        lat = loc.latitude
+        lon = loc.longitude
+        location_label = loc.address
+        st.sidebar.success(f"U.S. Pinned: {location_label[:38]}...")
+    else:
+        st.sidebar.warning("Location not found in U.S. Using default (Cornelius, NC).")
+except Exception:
+    pass
+
+st.sidebar.markdown("---")
+panel_count = st.sidebar.number_input("Number of Panels in Array", min_value=1, max_value=500, value=12, help="Scales total array size and financial output.")
+tilt_angle = st.sidebar.slider("Panel Tilt Angle (Degrees)", 0, 90, int(abs(lat)*0.85), help="Fixed orientation angle. Optimal tilt closely mirrors local U.S. latitude.")
+wind_cutoff = st.sidebar.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15, help="Wind speed where tracking motors lock flat into a safe position.")
+inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0, help="Accounts for DC-to-AC conversion efficiency.")
+
+# --- TABS ---
 tab1, tab2 = st.tabs(["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: Site Image & Panel ROI Audit"])
 
 with tab1:
     st.header("U.S. Location & AI Tracking Physics Simulator")
     st.markdown("Test how U.S. regional latitude, panel tilt angles, wind cutoff safety thresholds, and array sizing impact annual kilowatt-hour yields and mechanical motor wear.")
     
-    col_ctrl, col_res = st.columns([1, 1.2], gap="large")
+    col_map, col_res = st.columns([1, 1.2], gap="large")
     
-    with col_ctrl:
-        st.subheader("🎛️ U.S. Simulation Controls")
-        city_query = st.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
-        
-        lat, lon = 35.4858, -80.9038
-        location_label = "Cornelius, North Carolina"
-        try:
-            geolocator = Nominatim(user_agent="solar_app_us_tab1_v5")
-            loc = geolocator.geocode(city_query + ", USA")
-            if loc:
-                lat = loc.latitude
-                lon = loc.longitude
-                location_label = loc.address
-                st.success(f"U.S. Pinned: {location_label[:45]}...")
-            else:
-                st.warning("Location not found in U.S. Using default (Cornelius, NC).")
-        except Exception:
-            pass
-
-        panel_count = st.number_input("Number of Panels in Array", min_value=1, max_value=500, value=12, help="Scales total array size and financial output.")
-        tilt_angle = st.slider("Panel Tilt Angle (Degrees)", 0, 90, int(abs(lat)*0.85), help="Fixed orientation angle. Optimal tilt closely mirrors local U.S. latitude.")
-        wind_cutoff = st.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15, help="Wind speed where tracking motors lock flat into a safe position to prevent structural fatigue.")
-        inverter_eff = st.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0, help="Accounts for DC-to-AC conversion efficiency.")
-        
-        st.markdown("---")
+    with col_map:
         st.subheader("🗺️ U.S. Region Map Pinpoint")
         map_df = pd.DataFrame({"lat": [lat], "lon": [lon]})
         st.map(map_df, zoom=5, use_container_width=True)
+        st.info(f"Active Simulation Zone: **{location_label}** (Lat: {lat:.2f}°)")
 
     with col_res:
         st.subheader("📊 Live Simulation Results & Performance Audit")
         
-        # Execute rigorous physics calculations responding directly to all controls
         fixed_y, standard_y, ai_y = calculate_solar_physics(lat, tilt_angle, wind_cutoff, panel_count, inverter_eff)
         
         std_gain = ((standard_y - fixed_y) / fixed_y) * 100 if fixed_y > 0 else 0
@@ -71,12 +72,10 @@ with tab1:
             "Annual kWh Output": [fixed_y, standard_y, ai_y]
         })
         st.bar_chart(chart_data.set_index("System Type"))
-        
-        st.info(f"💡 **Physics Verification:** Results are dynamically computed for **{location_label}** (Lat: {lat:.2f}°) with a {tilt_angle}° tilt and {wind_cutoff} mph wind safety cutoff.")
 
 with tab2:
     st.header("Automated Computer Vision & Panel ROI Audit")
-    st.markdown("Upload site aerials, drone photos, or roof blueprints. The computer vision engine evaluates pixel luminosity and foliage density to rank the **Big 3 Panel Types** for energy gain and structural wear resilience.")
+    st.markdown("Upload site aerials, drone photos, or roof blueprints. The computer vision engine evaluates pixel luminosity and foliage density to rank the **Big 3 Panel Types** for energy gain and structural wear resilience, followed by specific engineering parameter checks.")
     
     col_a, col_b = st.columns(2)
     with col_a:
