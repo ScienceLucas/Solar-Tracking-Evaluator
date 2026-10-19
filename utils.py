@@ -4,8 +4,8 @@ PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & Computer Vision Engine)
 DESCRIPTION: Contains enterprise-grade mathematical models for solar incidence angle,
              Lambertian tilt mismatch loss, continuous linear-curve wind stowing 
-             penalties across 5-30 mph, unconstrained vs. constrained comparative logic,
-             native NREL inverter efficiency integration, and computer vision pixel scans.
+             penalties across 5-30 mph, unoptimal low-wind cutoff warnings, 
+             native NREL inverter efficiency integration, and computer vision scans.
 ===============================================================================
 """
 
@@ -62,9 +62,9 @@ def fetch_nrel_pvwatts_data_for_architecture(lat, lon, system_capacity_kw, tilt_
 
 def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inverter_eff, nrel_api_key="DEMO_KEY", simulation_mode="Full Year Aggregate"):
     """
-    High-resolution photovoltaic calculation engine. Dynamically evaluates Lambertian cosine tilt
-    mismatch penalties, single-axis solar tracking geometry, continuous wind stowing energy losses across 5-30 mph,
-    computes unconstrained vs. constrained comparisons, and returns motor wear reductions.
+    High-resolution photovoltaic calculation engine. Evaluates Lambertian cosine tilt mismatch,
+    single-axis tracking geometry, continuous wind stowing penalties across 5-30 mph, 
+    low-wind unoptimal warnings, unconstrained vs. constrained comparisons, and motor wear.
     """
     panel_wattage_kw = 0.400
     total_system_capacity_kw = float(panel_count) * panel_wattage_kw
@@ -104,11 +104,8 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
         fixed_tilt_annual_yield = total_system_capacity_kw * annual_psh_total * tilt_cosine_efficiency * system_performance_ratio
 
     # 3. Continuous Wind Stowing Energy Penalty for Trackers (Smooth scaling across 5 to 30 mph slider)
-    # Constrained factor uses active wind slider
     wind_stow_loss_factor = 0.70 + 0.30 * ((wind_f - 5.0) / 25.0)
     wind_stow_loss_factor = max(0.70, min(1.0, wind_stow_loss_factor))
-
-    # Unconstrained factor (1.0 = zero stowing penalty, assuming 100% operational uptime)
     unconstrained_loss_factor = 1.0
 
     # 4. Standard Tracker & AI Tracker Yield Mechanics (Constrained vs Unconstrained)
@@ -128,7 +125,6 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
         ai_tracker_annual_yield = standard_tracker_annual_yield * 1.09
         ai_tracker_unconstrained_yield = standard_tracker_unconstrained_yield * 1.09
 
-    # Ensure clean numeric float types
     fixed_tilt_annual_yield = float(fixed_tilt_annual_yield)
     standard_tracker_annual_yield = float(standard_tracker_annual_yield)
     ai_tracker_annual_yield = float(ai_tracker_annual_yield)
@@ -137,7 +133,18 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     motor_wear_reduction_pct = round(44.0 - ((wind_f - 5.0) * (14.0 / 25.0)) + (abs(lat_f) * 0.05), 1)
     motor_wear_reduction_pct = max(20.0, min(65.0, motor_wear_reduction_pct))
 
-    # 6. Generate Explicit Wind Cutoff Comparison Message
+    # 6. Generate Unoptimal Low-Wind Speed Warning Message if <= 8 mph
+    unoptimal_wind_warning = None
+    if wind_f <= 8:
+        unoptimal_wind_warning = (
+            f"You have selected an extremely low wind cutoff threshold of **{wind_f} mph**. "
+            f"In professional solar engineering, this is highly **unoptimal** because single-axis trackers "
+            f"will constantly lock flat (stow) even during mild breezes. While this dramatically increases mechanical "
+            f"motor wear savings, it severely penalizes your annual energy yield, causing your trackers to underperform "
+            f"relative to standard operating baselines."
+        )
+
+    # 7. Generate Explicit Wind Cutoff Comparison Message
     energy_loss_kwh = ai_tracker_unconstrained_yield - ai_tracker_annual_yield
     wind_cutoff_comparison_message = (
         f"At your current wind speed cutoff threshold of **{wind_f} mph**, the AI Smart Tracker stows during high winds, "
@@ -191,9 +198,9 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
             "Autumn (Sep-Nov)": {"Fixed": autumn_fixed, "Standard": autumn_std, "AI Tracker": autumn_ai},
             "Winter (Dec-Feb)": {"Fixed": winter_fixed, "Standard": winter_std, "AI Tracker": winter_ai}
         }
-        return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, seasonal_breakdown, wind_cutoff_comparison_message
+        return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, seasonal_breakdown, wind_cutoff_comparison_message, unoptimal_wind_warning
         
-    return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, None, wind_cutoff_comparison_message
+    return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, None, wind_cutoff_comparison_message, unoptimal_wind_warning
 
 def extract_gps_from_image(image_file_object):
     """
@@ -241,7 +248,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_loc
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v11")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v12")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
