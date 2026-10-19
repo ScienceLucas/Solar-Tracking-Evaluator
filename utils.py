@@ -4,8 +4,8 @@ PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & Computer Vision Engine)
 DESCRIPTION: Contains enterprise-grade mathematical models for solar incidence angle,
              Lambertian tilt mismatch loss, continuous linear-curve wind stowing 
-             penalties across 5-30 mph, native NREL inverter efficiency integration,
-             25-year panel degradation, and computer vision pixel canopy analysis.
+             penalties across 5-30 mph, unconstrained vs. constrained comparative logic,
+             native NREL inverter efficiency integration, and computer vision pixel scans.
 ===============================================================================
 """
 
@@ -64,7 +64,7 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     """
     High-resolution photovoltaic calculation engine. Dynamically evaluates Lambertian cosine tilt
     mismatch penalties, single-axis solar tracking geometry, continuous wind stowing energy losses across 5-30 mph,
-    and fully integrated motor wear reduction calculations computed natively within the physics module.
+    computes unconstrained vs. constrained comparisons, and returns motor wear reductions.
     """
     panel_wattage_kw = 0.400
     total_system_capacity_kw = float(panel_count) * panel_wattage_kw
@@ -90,7 +90,7 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     annual_psh_total = daily_psh * 365.0
     system_performance_ratio = 0.82 * (inv_eff_f / 100.0)
     
-    # 2. Lambertian Cosine Law Tilt Mismatch Physics
+    # 2. Lambertian Cosine Law Tilt Mismatch Physics (Fixed Tilt)
     optimal_tilt_angle = abs(lat_f) * 0.87
     tilt_delta_radians = np.radians(abs(tilt_f - optimal_tilt_angle))
     tilt_cosine_efficiency = max(0.18, np.cos(tilt_delta_radians) ** 1.85)
@@ -104,35 +104,47 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
         fixed_tilt_annual_yield = total_system_capacity_kw * annual_psh_total * tilt_cosine_efficiency * system_performance_ratio
 
     # 3. Continuous Wind Stowing Energy Penalty for Trackers (Smooth scaling across 5 to 30 mph slider)
+    # Constrained factor uses active wind slider
     wind_stow_loss_factor = 0.70 + 0.30 * ((wind_f - 5.0) / 25.0)
     wind_stow_loss_factor = max(0.70, min(1.0, wind_stow_loss_factor))
 
-    # 4. Standard Tracker & AI Tracker Yield Mechanics
+    # Unconstrained factor (1.0 = zero stowing penalty, assuming 100% operational uptime)
+    unconstrained_loss_factor = 1.0
+
+    # 4. Standard Tracker & AI Tracker Yield Mechanics (Constrained vs Unconstrained)
     if annual_std_nrel and annual_std_nrel > 0:
         base_std_yield = annual_std_nrel
     else:
         optimal_fixed_baseline = total_system_capacity_kw * annual_psh_total * 1.0 * system_performance_ratio
-        base_std_yield = optimal_fixed_baseline * 1.25
+        base_std_yield = optimal_fixed_baseline * 1.28
 
     standard_tracker_annual_yield = base_std_yield * wind_stow_loss_factor
+    standard_tracker_unconstrained_yield = base_std_yield * unconstrained_loss_factor
     
     if annual_ai_nrel and annual_ai_nrel > 0:
         ai_tracker_annual_yield = annual_ai_nrel * wind_stow_loss_factor * 1.085
+        ai_tracker_unconstrained_yield = annual_ai_nrel * unconstrained_loss_factor * 1.085
     else:
         ai_tracker_annual_yield = standard_tracker_annual_yield * 1.09
+        ai_tracker_unconstrained_yield = standard_tracker_unconstrained_yield * 1.09
 
-    # 5. Strict Physical Hierarchy Validation
+    # Ensure clean numeric float types
     fixed_tilt_annual_yield = float(fixed_tilt_annual_yield)
     standard_tracker_annual_yield = float(standard_tracker_annual_yield)
-    ai_tracker_annual_yield = max(standard_tracker_annual_yield, float(ai_tracker_annual_yield))
+    ai_tracker_annual_yield = float(ai_tracker_annual_yield)
 
-    if standard_tracker_annual_yield < fixed_tilt_annual_yield:
-        standard_tracker_annual_yield = fixed_tilt_annual_yield * 1.05
-        ai_tracker_annual_yield = standard_tracker_annual_yield * 1.08
-
-    # 6. Fully Continuous Backend Motor Wear Reduction Calculation (No hard threshold flatlining)
+    # 5. Fully Continuous Backend Motor Wear Reduction Calculation
     motor_wear_reduction_pct = round(44.0 - ((wind_f - 5.0) * (14.0 / 25.0)) + (abs(lat_f) * 0.05), 1)
     motor_wear_reduction_pct = max(20.0, min(65.0, motor_wear_reduction_pct))
+
+    # 6. Generate Explicit Wind Cutoff Comparison Message
+    energy_loss_kwh = ai_tracker_unconstrained_yield - ai_tracker_annual_yield
+    wind_cutoff_comparison_message = (
+        f"At your current wind speed cutoff threshold of **{wind_f} mph**, the AI Smart Tracker stows during high winds, "
+        f"reducing annual generation by **{energy_loss_kwh:,.1f} kWh** compared to an unconstrained theoretical maximum "
+        f"of **{ai_tracker_unconstrained_yield:,.1f} kWh** (Current Active Output: **{ai_tracker_annual_yield:,.1f} kWh**). "
+        f"This safety stowing successfully saves **{motor_wear_reduction_pct}%** in mechanical motor gear fatigue."
+    )
     
     if simulation_mode == "Seasonal / Quarterly Breakdown":
         if monthly_fixed_nrel and len(monthly_fixed_nrel) == 12:
@@ -148,10 +160,10 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
                 autumn_fixed *= tilt_scale
                 winter_fixed *= tilt_scale
 
-            spring_std = sum(monthly_std_nrel[2:5]) * wind_stow_loss_factor if monthly_std_nrel else spring_fixed * 1.25 * wind_stow_loss_factor
-            summer_std = sum(monthly_std_nrel[5:8]) * wind_stow_loss_factor if monthly_std_nrel else summer_fixed * 1.25 * wind_stow_loss_factor
-            autumn_std = sum(monthly_std_nrel[8:11]) * wind_stow_loss_factor if monthly_std_nrel else autumn_fixed * 1.25 * wind_stow_loss_factor
-            winter_std = sum(monthly_std_nrel[11:] + monthly_std_nrel[:2]) * wind_stow_loss_factor if monthly_std_nrel else winter_fixed * 1.25 * wind_stow_loss_factor
+            spring_std = sum(monthly_std_nrel[2:5]) * wind_stow_loss_factor if monthly_std_nrel else spring_fixed * 1.28 * wind_stow_loss_factor
+            summer_std = sum(monthly_std_nrel[5:8]) * wind_stow_loss_factor if monthly_std_nrel else summer_fixed * 1.28 * wind_stow_loss_factor
+            autumn_std = sum(monthly_std_nrel[8:11]) * wind_stow_loss_factor if monthly_std_nrel else autumn_fixed * 1.28 * wind_stow_loss_factor
+            winter_std = sum(monthly_std_nrel[11:] + monthly_std_nrel[:2]) * wind_stow_loss_factor if monthly_std_nrel else winter_fixed * 1.28 * wind_stow_loss_factor
 
             spring_ai = spring_std * 1.085
             summer_ai = summer_std * 1.085
@@ -163,10 +175,10 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
             autumn_fixed = fixed_tilt_annual_yield * 0.22
             winter_fixed = fixed_tilt_annual_yield * 0.16
             
-            spring_std = spring_fixed * 1.25 * wind_stow_loss_factor
-            summer_std = summer_fixed * 1.25 * wind_stow_loss_factor
-            autumn_std = autumn_fixed * 1.25 * wind_stow_loss_factor
-            winter_std = winter_fixed * 1.25 * wind_stow_loss_factor
+            spring_std = spring_fixed * 1.28 * wind_stow_loss_factor
+            summer_std = summer_fixed * 1.28 * wind_stow_loss_factor
+            autumn_std = autumn_fixed * 1.28 * wind_stow_loss_factor
+            winter_std = winter_fixed * 1.28 * wind_stow_loss_factor
 
             spring_ai = spring_std * 1.085
             summer_ai = summer_std * 1.085
@@ -179,9 +191,9 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
             "Autumn (Sep-Nov)": {"Fixed": autumn_fixed, "Standard": autumn_std, "AI Tracker": autumn_ai},
             "Winter (Dec-Feb)": {"Fixed": winter_fixed, "Standard": winter_std, "AI Tracker": winter_ai}
         }
-        return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, seasonal_breakdown
+        return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, seasonal_breakdown, wind_cutoff_comparison_message
         
-    return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, None
+    return fixed_tilt_annual_yield, standard_tracker_annual_yield, ai_tracker_annual_yield, motor_wear_reduction_pct, None, wind_cutoff_comparison_message
 
 def extract_gps_from_image(image_file_object):
     """
@@ -229,7 +241,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_loc
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v9")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v11")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
