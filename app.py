@@ -171,38 +171,18 @@ with tab1:
 # TAB 2: SITE CONTEXT & FILE ANALYZER
 # ==========================================
 with tab2:
-    st.subheader("🖼️ Site Photo, Blueprint & Context Analyzer")
-    st.markdown("Upload site aerial imagery, roof blueprints, or CAD files alongside location tags and notes to assess installation feasibility.")
-    
-    tab2_left, tab2_right = st.columns([1, 1], gap="large")
     st.header("Automated Computer Vision & Financial Audit")
-
-    with tab2_left:
-        st.markdown("##### 1. Upload Site Layout / Image")
-        uploaded_file = st.file_uploader(
-            "Upload Roof Blueprint, Drone Photo, or CAD File",
-            help="Upload any architectural image or site plan file."
-        )
+    
     col_a, col_b = st.columns(2)
     with col_a:
         uploaded_file = st.file_uploader("1. Upload Roof Blueprint, Drone Photo, or CAD File", type=["png", "jpg", "jpeg", "webp"])
-        manual_image_location = st.text_input("Specify Image Location (City, State or Address)", "Cornelius, NC")
-
-        manual_image_location = st.text_input(
-            "Specify Image Location (City, State or Address)",
-            value="",
-            help="If your photo doesn't have GPS metadata embedded, type the location where the photo was taken here."
-        )
-
+        manual_image_location = st.text_input("Specify Image Location (City, State or Address)", "Cornelius, NC", help="If your photo doesn't have GPS metadata embedded, type the location where the photo was taken here.")
+        
         if uploaded_file:
             st.success(f"Successfully received: **{uploaded_file.name}**")
-            if uploaded_file.type.startswith('image'):
-                st.image(uploaded_file, caption="Site Overview Preview", use_column_width=True)
-            else:
-                st.info("File loaded into memory for geometric site analysis.")
             st.image(uploaded_file, caption="Site Overview Preview", use_container_width=True)
 
-    with tab2_right:
+    with col_b:
         st.markdown("##### 2. Site Physical & Environmental Context")
         surface_type = st.selectbox(
             "Installation Surface / Terrain Type",
@@ -216,13 +196,8 @@ with tab2:
         )
         
         analyze_btn = st.button("🔍 Analyze Site Context & Generate Report", use_container_width=True)
-    with col_b:
-        surface_type = st.selectbox("2. Installation Surface / Terrain Type", ["Flat Commercial Roof", "Sloped Residential Roof", "Ground Mount Array"])
-        site_notes = st.text_area("Local Shading & Physical Obstruction Notes", "e.g., 15 mph winds, minor perimeter trees near middle roof")
-
+        
         if analyze_btn:
-            with st.spinner("Running computer vision pixel analysis & scanning photo metadata..."):
-        if st.button("🔍 Analyze Site Context & Generate Report"):
             with st.spinner("Running computer vision pixel analysis & financial modeling..."):
                 report_output = analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_location)
                 st.markdown(report_output)
