@@ -1,9 +1,18 @@
+"""
+app.py - Main Streamlit User Interface for AI Solar Tracker & Site Intelligence Auditor
+Congressional App Challenge Project
+"""
+
 import streamlit as st
 import pandas as pd
 from utils import calculate_solar_physics, analyze_site_image
 from geopy.geocoders import Nominatim
 
-st.set_page_config(page_title="AI Solar Tracker & Site Evaluator", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="AI Solar Tracker & Site Evaluator", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
@@ -12,10 +21,13 @@ st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer 
 st.sidebar.header("🌍 U.S. Simulation Controls")
 city_query_input = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
 
+# Optional NREL API Key Input for dead-on federal data verification
+nrel_api_key_input = st.sidebar.text_input("NREL API Key (Optional)", value="DEMO_KEY", type="password", help="Enter your free API key from developer.nrel.gov for live federal PVSignal data, or leave as DEMO_KEY.")
+
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_responsive")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_enterprise")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -51,9 +63,15 @@ with tab_simulation:
     with col_results_view:
         st.subheader("📊 Live Simulation Results & Performance Audit")
         
-        # Execute physics simulation reactively with decimal precision
+        # Execute physics simulation reactively with decimal precision and NREL API support
         fixed_yield_val, standard_yield_val, ai_yield_val = calculate_solar_physics(
-            latitude_val, configured_tilt_angle, configured_wind_cutoff, array_panel_count, configured_inverter_eff
+            lat=latitude_val, 
+            lon=longitude_val, 
+            tilt_angle=configured_tilt_angle, 
+            wind_cutoff=configured_wind_cutoff, 
+            panel_count=array_panel_count, 
+            inverter_eff=configured_inverter_eff,
+            nrel_api_key=nrel_api_key_input
         )
         
         standard_gain_pct = ((standard_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
@@ -73,8 +91,9 @@ with tab_simulation:
         chart_dataframe = pd.DataFrame({
             "System Architecture": ["Fixed Tilt", "Standard Tracker", "AI Smart Tracker"],
             "Annual Energy Output (kWh)": [fixed_yield_val, standard_yield_val, ai_yield_val]
-        })
-        st.bar_chart(chart_dataframe.set_index("System Architecture"))
+        }).set_index("System Architecture")
+        
+        st.bar_chart(chart_dataframe)
 
 with tab_audit:
     st.header("Automated Computer Vision & Panel ROI Audit")
@@ -106,5 +125,11 @@ with tab_audit:
         
         if execute_audit_button:
             with st.spinner("Running computer vision pixel scan & Big 3 financial ROI modeling..."):
-                generated_audit_report = analyze_site_image(uploaded_site_image_file, surface_terrain_type, user_site_notes, manual_image_location_input)
+                generated_audit_report = analyze_site_image(
+                    uploaded_file=uploaded_site_image_file, 
+                    surface_type=surface_terrain_type, 
+                    site_notes=user_site_notes, 
+                    manual_image_location=manual_image_location_input,
+                    nrel_api_key=nrel_api_key_input
+                )
                 st.markdown(generated_audit_report)
