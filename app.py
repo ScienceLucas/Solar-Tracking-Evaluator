@@ -112,8 +112,9 @@ with tab_simulation:
                 sub_metric_col2.metric("Additional Clean Energy", f"{(ai_yield_val - fixed_yield_val):,.1f} kWh", "Net gain across array")
 
                 st.markdown("---")
+                # Numbered prefixes ensure correct physical ordering in Vega-Lite charts
                 chart_dataframe = pd.DataFrame({
-                    "System Architecture": ["Fixed Tilt", "Standard Tracker", "AI Smart Tracker"],
+                    "System Architecture": ["1. Fixed Tilt", "2. Standard Tracker", "3. AI Smart Tracker"],
                     "Annual Energy Output (kWh)": [fixed_yield_val, standard_yield_val, ai_yield_val]
                 }).set_index("System Architecture")
                 
@@ -169,12 +170,15 @@ with tab_audit:
         execute_audit_button = st.button("🔍 Analyze Site Context & Generate Report", use_container_width=True)
         
         if execute_audit_button:
-            with st.spinner("Running computer vision pixel scan & Big 3 financial ROI modeling..."):
-                generated_audit_report = analyze_site_image(
-                    uploaded_file=uploaded_site_image_file, 
-                    surface_type=surface_terrain_type, 
-                    site_notes=user_site_notes, 
-                    manual_image_location=manual_image_location_input,
-                    nrel_api_key=nrel_api_key_input
-                )
-                st.markdown(generated_audit_report)
+            if uploaded_site_image_file is None:
+                st.warning("⚠️ Please upload a site layout or aerial photo in Step 1 before running the computer vision audit.")
+            else:
+                with st.spinner("Running computer vision pixel scan & Big 3 financial ROI modeling..."):
+                    generated_audit_report = analyze_site_image(
+                        uploaded_file=uploaded_site_image_file, 
+                        surface_type=surface_terrain_type, 
+                        site_notes=user_site_notes, 
+                        manual_image_location=manual_image_location_input,
+                        nrel_api_key=nrel_api_key_input
+                    )
+                    st.markdown(generated_audit_report)
