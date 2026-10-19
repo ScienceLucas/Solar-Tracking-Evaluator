@@ -134,10 +134,7 @@ with tab1:
 # ==========================================
 with tab2:
     st.subheader("🖼️ Site Photo, Blueprint & Context Analyzer")
-    st.markdown("Upload site aerial imagery, roof blueprints, or CAD files alongside local physical notes to assess installation feasibility.")
-    
-    # Import image analysis function from utils if not already imported at top
-    from utils import analyze_site_image
+    st.markdown("Upload site aerial imagery, roof blueprints, or CAD files alongside location tags and notes to assess installation feasibility.")
     
     tab2_left, tab2_right = st.columns([1, 1], gap="large")
     
@@ -147,6 +144,13 @@ with tab2:
             "Upload Roof Blueprint, Drone Photo, or CAD File",
             help="Upload any architectural image or site plan file."
         )
+        
+        manual_image_location = st.text_input(
+            "Specify Image Location (City, State or Address)",
+            value="",
+            help="If your photo doesn't have GPS metadata embedded, type the location where the photo was taken here."
+        )
+
         if uploaded_file:
             st.success(f"Successfully received: **{uploaded_file.name}**")
             if uploaded_file.type.startswith('image'):
@@ -170,6 +174,6 @@ with tab2:
         analyze_btn = st.button("🔍 Analyze Site Context & Generate Report", use_container_width=True)
         
         if analyze_btn:
-            with st.spinner("Running computer vision pixel analysis & generating solar efficiency report..."):
-                report_output = analyze_site_image(uploaded_file, surface_type, site_notes)
+            with st.spinner("Running computer vision pixel analysis & scanning photo metadata..."):
+                report_output = analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_location)
                 st.markdown(report_output)
