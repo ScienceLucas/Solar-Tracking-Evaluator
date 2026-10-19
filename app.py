@@ -2,10 +2,9 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Houses U.S. simulation controls in the sidebar, explicit 
-             'Run Simulation Model' execution, live maps, temporal mode selectors,
-             metric cards, synchronized charts, wind cutoff comparison notifications,
-             and Tab 2 computer vision auditor.
+DESCRIPTION: Houses U.S. simulation controls inside a batch-submission form 
+             in the sidebar, explicit execution controls, live maps, temporal 
+             mode selectors, metric cards, low wind speed warnings, and Tab 2 auditor.
 ===============================================================================
 """
 
@@ -24,7 +23,7 @@ st.set_page_config(
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
 
-# --- SIDEBAR CONTROLS (DEDICATED TO TAB 1 SIMULATOR) ---
+# --- SIDEBAR CONTROLS ENCLOSED IN A BATCH-SUBMISSION FORM ---
 st.sidebar.header("🌍 U.S. Simulation Controls")
 city_query_input = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
 nrel_api_key_input = st.sidebar.text_input("NREL API Key (Optional)", value="DEMO_KEY", type="password", help="Enter your free API key from developer.nrel.gov.")
@@ -38,7 +37,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v11")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v12")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -51,15 +50,19 @@ except Exception:
     pass
 
 st.sidebar.markdown("---")
-array_panel_count = st.sidebar.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
-configured_tilt_angle = st.sidebar.slider("Panel Tilt Angle / Fixed Tilt Surface (Degrees)", 0, 90, 31)
-configured_wind_cutoff = st.sidebar.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15)
-configured_inverter_eff = st.sidebar.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
 
-st.sidebar.markdown("---")
-run_simulation_button = st.sidebar.button("🚀 Run Simulation Model", type="primary", use_container_width=True)
+# Using st.sidebar.form so outputs only update when the user clicks submit instead of auto-rerunning on every slider drag
+with st.sidebar.form(key="simulation_input_form"):
+    st.markdown("##### 🎛️ Parameters Configuration")
+    array_panel_count = st.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
+    configured_tilt_angle = st.slider("Panel Tilt Angle / Fixed Tilt Surface (Degrees)", 0, 90, 31)
+    configured_wind_cutoff = st.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15)
+    configured_inverter_eff = st.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
 
-# Session State Management for Run Simulation Button Execution
+    st.markdown("---")
+    run_simulation_button = st.form_submit_button("🚀 Run Simulation Model", type="primary", use_container_width=True)
+
+# Session State Management for Form Submission Tracking
 if 'simulation_executed' not in st.session_state:
     st.session_state['simulation_executed'] = True
 
@@ -71,7 +74,7 @@ tab_simulation, tab_audit = st.tabs(["⚡ Tab 1: U.S. Tracking Physics & Simulat
 
 with tab_simulation:
     st.header("U.S. Location & AI Tracking Physics Simulator")
-    st.markdown(f"Active Mode: **{simulation_mode}**. Configure your parameters in the sidebar and click **'Run Simulation Model'** to execute calculations.")
+    st.markdown(f"Active Mode: **{simulation_mode}**. Adjust your parameters in the sidebar form and click **'Run Simulation Model'** to update outputs.")
     
     col_map_view, col_results_view = st.columns([1, 1.2], gap="large")
     
@@ -97,8 +100,12 @@ with tab_simulation:
             )
             
             if simulation_mode == "Full Year Aggregate":
-                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, seasonal_dict, wind_cutoff_comparison_message = sim_results
+                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, seasonal_dict, wind_cutoff_comparison_message, unoptimal_wind_warning = sim_results
                 
+                # Check and display unoptimal low wind speed warning if triggered
+                if unoptimal_wind_warning:
+                    st.warning(f"⚠️ **Low Wind Speed Cutoff Warning ({configured_wind_cutoff} mph):**\n\n{unoptimal_wind_warning}")
+
                 standard_gain_pct = ((standard_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
                 ai_gain_pct = ((ai_yield_val - fixed_yield_val) / fixed_yield_val) * 100 if fixed_yield_val > 0 else 0
 
@@ -111,7 +118,6 @@ with tab_simulation:
                 sub_metric_col1.metric("Estimated Motor Wear Reduced", f"{motor_wear_reduction_pct}%", "Gear fatigue saved via AI")
                 sub_metric_col2.metric("Additional Clean Energy", f"{(ai_yield_val - fixed_yield_val):,.1f} kWh", "Net gain across array")
 
-                # Display the explicit wind cutoff comparative message requested by the user
                 st.markdown("---")
                 st.info(f"🌬️ **Wind Speed Cutoff Impact Analysis (Full Year Mode):**\n\n{wind_cutoff_comparison_message}")
 
@@ -123,7 +129,11 @@ with tab_simulation:
                 st.bar_chart(chart_dataframe)
                 
             else:
-                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, seasonal_dict, wind_cutoff_comparison_message = sim_results
+                fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, seasonal_dict, wind_cutoff_comparison_message, unoptimal_wind_warning = sim_results
+                
+                if unoptimal_wind_warning:
+                    st.warning(f"⚠️ **Low Wind Speed Cutoff Warning ({configured_wind_cutoff} mph):**\n\n{unoptimal_wind_warning}")
+
                 st.markdown("##### 🍂 Quarterly Seasonal Energy Breakdown")
                 
                 seasonal_rows = []
@@ -138,14 +148,13 @@ with tab_simulation:
                 seasonal_df = pd.DataFrame(seasonal_rows).set_index("Season")
                 st.dataframe(seasonal_df, use_container_width=True)
 
-                # Display the explicit wind cutoff comparative message for seasonal mode as well
                 st.markdown("---")
                 st.info(f"🍂 **Wind Speed Cutoff Impact Analysis (Seasonal Mode):**\n\n{wind_cutoff_comparison_message}")
                 
                 st.markdown("---")
                 st.bar_chart(seasonal_df)
         else:
-            st.info("👈 Configure your parameters in the sidebar and click **'Run Simulation Model'** to generate results.")
+            st.info("👈 Modify your parameters in the sidebar form and click **'Run Simulation Model'** to generate results.")
 
 with tab_audit:
     st.header("Automated Computer Vision & Panel ROI Audit")
