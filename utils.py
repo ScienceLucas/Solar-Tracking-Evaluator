@@ -1,5 +1,6 @@
 import numpy as np
 from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
 
 def calculate_solar_physics(lat, tilt_angle, wind_cutoff, panel_count):
     base_solar_irradiance = max(20.0, 52.0 - (abs(lat) * 0.45))
@@ -16,33 +17,74 @@ def calculate_solar_physics(lat, tilt_angle, wind_cutoff, panel_count):
     
     return fixed_yield, standard_yield, ai_yield
 
-def analyze_site_image(uploaded_file, surface_type, site_notes):
+def extract_gps_from_image(image):
+    """Attempts to extract GPS coordinates from image EXIF metadata."""
+    try:
+        exif = image._getexif()
+        if not exif:
+            return None, None
+        
+        gps_info = {}
+        for tag_id, value in exif.items():
+            tag = TAGS.get(tag_id, tag_id)
+            if tag == "GPSInfo":
+                for gps_tag_id in value:
+                    gps_tag = GPSTAGS.get(gps_tag_id, gps_tag_id)
+                    gps_info[gps_tag] = value[gps_tag_id]
+        
+        if "GPSLatitude" in gps_info and "GPSLongitude" in gps_info:
+            lat_data = gps_info["GPSLatitude"]
+            lon_data = gps_info["GPSLongitude"]
+            lat_ref = gps_info.get("GPSLatitudeRef", "N")
+            lon_ref = gps_info.get("GPSLongitudeRef", "W")
+            
+            lat = float(lat_data[0]) + float(lat_data[1])/60.0 + float(lat_data[2])/3600.0
+            if lat_ref != "N": 
+                lat = -lat
+            lon = float(lon_data[0]) + float(lon_data[1])/60.0 + float(lon_data[2])/3600.0
+            if lon_ref != "W": 
+                lon = -lon  # Defaulting standard US longitude orientation check
+            return lat, lon
+    except Exception:
+        pass
+    return None, None
+
+def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_location=""):
     if uploaded_file is None:
-        return "⚠️ No image uploaded. Please upload a site layout or aerial photo in Step 1 above to generate an automated computer vision analysis report."
+        return "⚠️ No image uploaded. Please upload a site layout or aerial photo in Step 1 above."
     
     try:
-        # Open image using Pillow
         img = Image.open(uploaded_file)
         width, height = img.size
         img_format = img.format or "Standard Image"
         
-        # Convert to numpy array to analyze pixel characteristics (brightness / exposure)
+        # Check for embedded GPS EXIF metadata
+        extracted_lat, extracted_lon = extract_gps_from_image(img)
+        
+        location_source_msg = ""
+        if extracted_lat and extracted_lon:
+            location_source_msg = f"📍 **EXIF Metadata Detected:** Extracted exact photo coordinates ({extracted_lat:.4f}, {extracted_lon:.4f})."
+        elif manual_image_location:
+            location_source_msg = f"📍 **Specified Image Location:** {manual_image_location}"
+        else:
+            location_source_msg = "📍 **Location:** No embedded GPS found; evaluated via general regional profile."
+
+        # Convert to numpy array to analyze pixel characteristics
         img_rgb = img.convert('RGB')
         arr = np.array(img_rgb)
-        avg_brightness = np.mean(arr) # 0 to 255 scale
+        avg_brightness = np.mean(arr)
         
-        # Heuristic computer vision analysis
         exposure_status = "Optimal High-Light Exposure" if avg_brightness > 110 else "Potential Shading / Overcast Conditions Detected"
         aspect_ratio = width / height
         layout_type = "Aerial / Satellite View" if aspect_ratio > 1.2 or aspect_ratio < 0.8 else "Ground-Level Architectural View"
         
-        # Dynamic efficiency calculations based on image pixel analysis & surface type
         mono_eff = round(21.5 + (0.6 if avg_brightness > 110 else -1.1), 1)
         poly_eff = round(17.0 + (0.4 if avg_brightness > 110 else -0.7), 1)
         bifacial_eff = round(23.8 + (1.4 if "Ground" in surface_type else 0.5), 1)
         
         report = f"""
         ### 🔬 Automated Computer Vision & Site Intelligence Report
+        - {location_source_msg}
         - **Image Metadata:** {width}x{height} px ({img_format}), Aspect Ratio: {aspect_ratio:.2f} ({layout_type})
         - **Pixel Brightness / Albedo Index:** {avg_brightness:.1f} / 255.0 — *{exposure_status}*
         - **Selected Surface Profile:** {surface_type}
