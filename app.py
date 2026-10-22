@@ -4,8 +4,7 @@ PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
 DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
              execution controls, live maps, temporal mode selectors, low-wind 
-             warnings, and Tab 2 AI image classification with partial-panel 
-             visibility and local obstruction handling.
+             warnings, and Tab 2 AI image classification with dynamic sidebar hiding.
 ===============================================================================
 """
 
@@ -24,54 +23,64 @@ st.set_page_config(
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
 
-# --- SIDEBAR CONTROLS ENCLOSED IN A BATCH-SUBMISSION FORM ---
-st.sidebar.header("🌍 U.S. Simulation Controls")
-city_query_input = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
-nrel_api_key_input = st.sidebar.text_input("NREL API Key (Optional)", value="DEMO_KEY", type="password", help="Enter your free API key from developer.nrel.gov.")
-
-simulation_mode = st.sidebar.selectbox(
-    "Simulation Temporal Mode",
-    ["Full Year Aggregate", "Seasonal / Quarterly Breakdown"],
-    help="Switch between annual totals and detailed seasonal performance analysis across Spring, Summer, Autumn, and Winter."
-)
-
-latitude_val, longitude_val = 35.4858, -80.9038
-active_location_label = "Cornelius, North Carolina"
-try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v16")
-    geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
-    if geocoded_location_obj:
-        latitude_val = geocoded_location_obj.latitude
-        longitude_val = geocoded_location_obj.longitude
-        active_location_label = geocoded_location_obj.address
-        st.sidebar.success(f"U.S. Pinned: {active_location_label[:38]}...")
-    else:
-        st.sidebar.warning("Location not found in U.S. Using default (Cornelius, NC).")
-except Exception:
-    pass
-
-st.sidebar.markdown("---")
-
-with st.sidebar.form(key="simulation_input_form"):
-    st.markdown("##### 🎛️ Parameters Configuration")
-    array_panel_count = st.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
-    configured_tilt_angle = st.slider("Panel Tilt Angle / Fixed Tilt Surface (Degrees)", 0, 90, 31)
-    configured_wind_cutoff = st.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15)
-    configured_inverter_eff = st.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
-
-    st.markdown("---")
-    run_simulation_button = st.form_submit_button("🚀 Run Simulation Model", type="primary", use_container_width=True)
-
-if 'simulation_executed' not in st.session_state:
-    st.session_state['simulation_executed'] = True
-
-if run_simulation_button:
-    st.session_state['simulation_executed'] = True
-
 # --- PRIMARY APP TABS ---
 tab_simulation, tab_audit = st.tabs(["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: AI Image Site & Panel Audit"])
 
+# --- DYNAMIC SIDEBAR VISIBILITY CONTROL ---
+# When Tab 2 is active, we inject CSS to hide the sidebar completely. When Tab 1 is active, we ensure it's visible.
+# Note: Since st.tabs doesn't return an active index directly without state, 
+# we control the sidebar rendering or inject CSS based on container context, 
+# or use st.radio/st.selectbox if absolute tab-switch CSS binding is needed. 
+# Alternatively, we can use a clean CSS state toggle or put the sidebar code strictly inside Tab 1's block!
+
+# BEST STREAMLIT APPROACH: Render sidebar contents ONLY when on Tab 1, or hide via CSS if Tab 2 is selected.
+# Let's use a session state or check tab selection by rendering the tabs and controlling sidebar inputs dynamically:
+
 with tab_simulation:
+    # --- SIDEBAR CONTROLS ENCLOSED IN A BATCH-SUBMISSION FORM (ONLY FOR TAB 1) ---
+    st.sidebar.header("🌍 U.S. Simulation Controls")
+    city_query_input = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
+    nrel_api_key_input = st.sidebar.text_input("NREL API Key (Optional)", value="DEMO_KEY", type="password", help="Enter your free API key from developer.nrel.gov.")
+
+    simulation_mode = st.sidebar.selectbox(
+        "Simulation Temporal Mode",
+        ["Full Year Aggregate", "Seasonal / Quarterly Breakdown"],
+        help="Switch between annual totals and detailed seasonal performance analysis across Spring, Summer, Autumn, and Winter."
+    )
+
+    latitude_val, longitude_val = 35.4858, -80.9038
+    active_location_label = "Cornelius, North Carolina"
+    try:
+        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v18")
+        geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
+        if geocoded_location_obj:
+            latitude_val = geocoded_location_obj.latitude
+            longitude_val = geocoded_location_obj.longitude
+            active_location_label = geocoded_location_obj.address
+            st.sidebar.success(f"U.S. Pinned: {active_location_label[:38]}...")
+        else:
+            st.sidebar.warning("Location not found in U.S. Using default (Cornelius, NC).")
+    except Exception:
+        pass
+
+    st.sidebar.markdown("---")
+
+    with st.sidebar.form(key="simulation_input_form"):
+        st.markdown("##### 🎛️ Parameters Configuration")
+        array_panel_count = st.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
+        configured_tilt_angle = st.slider("Panel Tilt Angle / Fixed Tilt Surface (Degrees)", 0, 90, 31)
+        configured_wind_cutoff = st.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15)
+        configured_inverter_eff = st.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
+
+        st.markdown("---")
+        run_simulation_button = st.form_submit_button("🚀 Run Simulation Model", type="primary", use_container_width=True)
+
+    if 'simulation_executed' not in st.session_state:
+        st.session_state['simulation_executed'] = True
+
+    if run_simulation_button:
+        st.session_state['simulation_executed'] = True
+
     st.header("U.S. Location & AI Tracking Physics Simulator")
     st.markdown(f"Active Mode: **{simulation_mode}**. Adjust your parameters in the sidebar form and click **'Run Simulation Model'** to update outputs.")
     
@@ -155,19 +164,30 @@ with tab_simulation:
             st.info("👈 Modify your parameters in the sidebar form and click **'Run Simulation Model'** to generate results.")
 
 with tab_audit:
+    # Hide sidebar via CSS injection when Tab 2 is active
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] {
+                display: none;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.header("👁️ AI Image Site & Panel Classification Auditor")
-    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. Specify how many panels are shown if only a partial view is captured, log your local shading notes, and run the AI audit.")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. Specify the **total** number of panels in the full system array (assuming identical modules if only partially pictured), log your local shading notes, and run the AI audit.")
     
     audit_col_left, audit_col_right = st.columns(2)
     with audit_col_left:
         uploaded_site_image_file = st.file_uploader("1. Upload Site Image / Roof Blueprint", type=["png", "jpg", "jpeg", "webp"])
         manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="If your photo lacks EXIF GPS metadata, enter the U.S. city where it was captured.")
         
-        # Added partial panel count input for images showing only part of an array
-        panels_in_image_count = st.number_input(
-            "Number of Panels Visible in Image (Partial View Support)", 
-            min_value=1, max_value=200, value=12,
-            help="If only a subset or section of the solar array is pictured in the uploaded photo, enter that panel count here."
+        total_array_panel_count_input = st.number_input(
+            "Total Number of Panels in Full Array (Assumes Identical Scaling)", 
+            min_value=1, max_value=500, value=60,
+            help="Enter the total panel count for the complete installation. If the image only captures a partial view, the model samples the image and scales the output across this total count."
         )
         
         if uploaded_site_image_file:
@@ -199,13 +219,13 @@ with tab_audit:
             if uploaded_site_image_file is None:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
             else:
-                with st.spinner("AI model analyzing pixel geometry, partial panel counts, obstruction notes, and comparative architectures..."):
+                with st.spinner("AI model analyzing pixel geometry, total array scaling, obstruction notes, and comparative architectures..."):
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
                         site_notes=user_site_notes, 
                         user_system_type=user_declared_system_type,
-                        panel_count_in_view=panels_in_image_count,
+                        total_panel_count=total_array_panel_count_input,
                         manual_image_location=manual_image_location_input,
                         nrel_api_key=nrel_api_key_input
                     )
