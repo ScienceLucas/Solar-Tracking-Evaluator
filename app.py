@@ -2,8 +2,10 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Manages sidebar visibility per tab, allows panel counts to go down 
-             to 0 for unbuilt/empty site evaluations, and runs simulations.
+DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
+             execution controls, live maps, temporal mode selectors, low-wind 
+             warnings, and Tab 2 AI image classification with automated zero-panel 
+             detection and tailored panel recommendations.
 ===============================================================================
 """
 
@@ -22,7 +24,6 @@ st.set_page_config(
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
 
-# Using a selectbox or radio for tabs to cleanly control sidebar presence in Streamlit
 app_tab_selection = st.radio(
     "Navigation Mode", 
     ["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: AI Image Site & Panel Audit"],
@@ -47,7 +48,7 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
     latitude_val, longitude_val = 35.4858, -80.9038
     active_location_label = "Cornelius, North Carolina"
     try:
-        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v19")
+        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v20")
         geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
         if geocoded_location_obj:
             latitude_val = geocoded_location_obj.latitude
@@ -160,33 +161,21 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
             st.info("👈 Modify your parameters in the sidebar form and click **'Run Simulation Model'** to generate results.")
 
 else:
-    # --- TAB 2: AI AUDIT (SIDEBAR IS NATURALLY ABSENT HERE) ---
+    # --- TAB 2: AI AUDIT ---
     st.header("👁️ AI Image Site & Panel Classification Auditor")
-    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. If evaluating an empty roof/site with **0** existing panels, specify your proposed panel count to receive tailored AI architecture recommendations.")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI model automatically classifies whether panels exist or if the site is a new unbuilt location, providing tailored panel recommendations and savings breakdowns.")
     
     audit_col_left, audit_col_right = st.columns(2)
     with audit_col_left:
         uploaded_site_image_file = st.file_uploader("1. Upload Site Image / Roof Blueprint", type=["png", "jpg", "jpeg", "webp"])
         manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="If your photo lacks EXIF GPS metadata, enter the U.S. city where it was captured.")
         
-        # Panel count can now go down to 0 for unbuilt / empty site suggestions
-        proposed_array_panel_count = st.number_input(
-            "Proposed or Existing Panel Count (Can be 0 for New Site Recommendations)", 
-            min_value=0, max_value=500, value=12,
-            help="Set to 0 or your intended array size when evaluating empty roofs or unfurnished terrain to get customized AI capacity and yield suggestions."
-        )
-        
         if uploaded_site_image_file:
             st.success(f"Successfully received: **{uploaded_site_image_file.name}**")
             st.image(uploaded_site_image_file, caption="Uploaded Site Asset Preview", use_container_width=True)
 
     with audit_col_right:
-        st.markdown("##### 2. User Architecture & Environmental Input")
-        user_declared_system_type = st.selectbox(
-            "Current or Intended System Setup Type",
-            ["Fixed Tilt Array", "Standard Single-Axis Tracker", "AI Smart Tracker", "Unknown / Evaluating New Site"]
-        )
-        
+        st.markdown("##### 2. Site Environmental & Terrain Context")
         surface_terrain_type = st.selectbox(
             "Installation Surface / Terrain Type",
             ["Flat Commercial Roof", "Pitched Residential Shingle", "Ground-Mounted Agricultural Field", "Coastal / High Humidity Ground"]
@@ -199,20 +188,18 @@ else:
             help="Describe any obstructions, nearby trees, or shading. The AI model explicitly factors these notes into the audit."
         )
         
-        execute_audit_button = st.button("🔍 Run AI Image Classification & Comparative Audit", use_container_width=True, type="primary")
+        execute_audit_button = st.button("🔍 Run AI Image Classification & Tailored Recommendation Audit", use_container_width=True, type="primary")
         
         if execute_audit_button:
             if uploaded_site_image_file is None:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
             else:
-                with st.spinner("AI model analyzing pixel geometry, panel presence, obstruction notes, and comparative architectures..."):
+                with st.spinner("AI model independently analyzing asset pixels, detecting panel presence, and calculating financial savings..."):
                     nrel_api_key_input = "DEMO_KEY"
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
                         site_notes=user_site_notes, 
-                        user_system_type=user_declared_system_type,
-                        total_panel_count=proposed_array_panel_count,
                         manual_image_location=manual_image_location_input,
                         nrel_api_key=nrel_api_key_input
                     )
