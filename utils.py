@@ -3,8 +3,7 @@
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & AI Computer Vision Engine)
 DESCRIPTION: Contains enterprise-grade mathematical models, NREL API wrappers, 
-             total-panel array scaling, obstruction note parsing, and AI 
-             computer vision image classification.
+             zero-panel handling for empty site suggestions, and AI classification.
 ===============================================================================
 """
 
@@ -28,6 +27,9 @@ def fetch_nrel_pvwatts_data_for_architecture(lat, lon, system_capacity_kw, tilt_
         - array_type = 3: Single-Axis Tracker with Backtracking (AI Smart Tracker)
     Passes official NREL 'inv_eff' and 'losses' parameters for exact engineering precision.
     """
+    if system_capacity_kw <= 0:
+        return 0.0, [0.0]*12
+        
     url = "https://developer.nrel.gov/api/pvwatts/v8.json"
     system_losses = round(100.0 - float(inverter_eff) + 4.0, 1)
     passed_tilt = float(tilt_angle) if array_type == 1 else 0.0
@@ -222,7 +224,7 @@ def extract_gps_from_image(image_file_object):
 def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type="Unknown / Evaluating New Site", total_panel_count=60, manual_image_location="", nrel_api_key="DEMO_KEY"):
     """
     Performs advanced AI computer vision pixel analysis combined with total-array panel scaling 
-    and obstruction text-parsing to evaluate existing panels or suitable locations.
+    (supporting 0 panels for empty site suggestions) and obstruction text-parsing.
     """
     if uploaded_file is None:
         return "⚠️ No image uploaded. Please upload a site image in Step 1 above to execute the AI audit."
@@ -239,7 +241,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v18")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v19")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
@@ -273,22 +275,24 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         if "severe" in notes_lowercased or "heavy" in notes_lowercased:
             obstruction_penalty = 0.70
 
-        # AI Classification Decision Tree
-        if canopy_foliage_percentage > 60.0:
+        # If user explicitly set panel count to 0 or panel percentage is very low on empty terrain
+        if total_panel_count == 0 and panel_pixel_percentage < 3.5 and canopy_foliage_percentage <= 60.0:
+            classification_status = "🔵 Suitable New Site (0 Panels Currently Installed - Suggested Deployment)"
+            recommendation_text = f"The AI model evaluated the empty roof/terrain (`{surface_type}`) and generated recommended optimal configurations for your proposed build."
+        elif canopy_foliage_percentage > 60.0:
             classification_status = "🔴 Unfitting Image / Non-Solar Site (Excessive Canopy & Obstructions)"
             recommendation_text = "The AI model detected heavy foliage/canopy interference (>60%) across the scanned asset. This location is poorly suited for solar without extensive tree trimming."
-        elif panel_pixel_percentage > 3.5:
-            classification_status = "🟢 Existing Panel Installation Detected"
-            recommendation_text = f"The AI model successfully identified solar module silicon reflection patterns. Your declared setup (`{user_system_type}`) was audited against alternative tracking architectures."
+        elif panel_pixel_percentage > 3.5 or total_panel_count > 0:
+            classification_status = "🟢 Existing Panel Installation / Custom Sized Asset"
+            recommendation_text = f"The AI model processed the site asset. Your configured array size (`{total_panel_count} panels`) and setup (`{user_system_type}`) were audited against alternative tracking architectures."
         else:
             classification_status = "🔵 Suitable Location for Panels (Empty Roof / Terrain)"
-            recommendation_text = f"The AI model evaluated the site terrain (`{surface_type}`) and confirmed an unobstructed surface area suitable for new solar panel deployment."
+            recommendation_text = f"The AI model evaluated the site terrain (`{surface_type}`) and confirmed an unobstructed surface area suitable for new solar panel generation."
 
         site_peak_sun_hours = max(2.5, 5.85 - (abs(resolved_latitude_val) * 0.042))
         annual_psh_total = site_peak_sun_hours * 365.0
         
-        # Scale array size by the user-specified total panel count for the full system
-        evaluation_array_size = float(total_panel_count)
+        evaluation_array_size = float(total_panel_count if total_panel_count > 0 else 12) # Default baseline for suggestion if 0
         array_total_kw = evaluation_array_size * 0.400
         
         shading_loss_penalty = max(0.50, (1.0 - (canopy_foliage_percentage / 70.0))) * obstruction_penalty
@@ -314,13 +318,13 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         ### 🤖 AI Computer Vision Classification & Audit Report
         - **AI Image Classification Result:** **{classification_status}**
         - **U.S. Resolved Location:** `{resolved_location_string}` (Latitude `{resolved_latitude_val:.2f}°` | PSH: `{site_peak_sun_hours:.2f} hrs/day`)
-        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name}) | **Total Array Panels (Identical Scaling):** `{int(evaluation_array_size)} units`
+        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name}) | **Array Sizing Evaluated:** `{int(evaluation_array_size)} units`
         - **Pixel Luminosity:** `{average_luminosity_index:.1f}/255` | **Canopy Foliage:** `{canopy_foliage_percentage:.1f}%` | **Panel Confidence:** `{panel_pixel_percentage:.1f}%`
         - **Installation Surface:** `{surface_type}` | **Obstruction Factor:** `{obstruction_penalty}` -> "{site_notes}"
         - **AI Evaluation Summary:** {recommendation_text}
         
         ---
-        #### 📊 Comparative Setup Performance & 25-Year Financial Audit (User Declared: `{user_system_type}`):
+        #### 📊 Comparative Setup Performance & 25-Year Financial Audit (User Declared Setup: `{user_system_type}`):
         1. **Fixed Tilt Architecture:**
            - *Annual Generation:* `{fixed_yield:,.1f} kWh/yr` | *25-Year Net Savings:* **${fixed_net:,.2f}**
         2. **Standard Single-Axis Tracker:**
