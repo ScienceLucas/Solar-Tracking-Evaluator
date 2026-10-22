@@ -4,7 +4,8 @@ PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
 DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
              execution controls, live maps, temporal mode selectors, low-wind 
-             warnings, and Tab 2 AI image classification & comparative auditing.
+             warnings, and Tab 2 AI image classification with partial-panel 
+             visibility and local obstruction handling.
 ===============================================================================
 """
 
@@ -37,7 +38,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v14")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v16")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -155,12 +156,19 @@ with tab_simulation:
 
 with tab_audit:
     st.header("👁️ AI Image Site & Panel Classification Auditor")
-    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI computer vision engine classifies the image, evaluates existing panel installation setup quality or site suitability, and benchmarks performance against Fixed, Standard Tracker, or AI Smart Tracker architectures.")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. Specify how many panels are shown if only a partial view is captured, log your local shading notes, and run the AI audit.")
     
     audit_col_left, audit_col_right = st.columns(2)
     with audit_col_left:
         uploaded_site_image_file = st.file_uploader("1. Upload Site Image / Roof Blueprint", type=["png", "jpg", "jpeg", "webp"])
         manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="If your photo lacks EXIF GPS metadata, enter the U.S. city where it was captured.")
+        
+        # Added partial panel count input for images showing only part of an array
+        panels_in_image_count = st.number_input(
+            "Number of Panels Visible in Image (Partial View Support)", 
+            min_value=1, max_value=200, value=12,
+            help="If only a subset or section of the solar array is pictured in the uploaded photo, enter that panel count here."
+        )
         
         if uploaded_site_image_file:
             st.success(f"Successfully received: **{uploaded_site_image_file.name}**")
@@ -181,7 +189,8 @@ with tab_audit:
         user_site_notes = st.text_area(
             "Local Shading & Physical Obstruction Notes",
             value="Commercial roof with minor tree shading along East edge. 15 mph average wind exposure.",
-            height=120
+            height=120,
+            help="Describe any obstructions, nearby trees, or shading. The AI model explicitly factors these notes into the audit."
         )
         
         execute_audit_button = st.button("🔍 Run AI Image Classification & Comparative Audit", use_container_width=True, type="primary")
@@ -190,12 +199,13 @@ with tab_audit:
             if uploaded_site_image_file is None:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
             else:
-                with st.spinner("AI model analyzing pixel geometry, panel presence, and comparative architectures..."):
+                with st.spinner("AI model analyzing pixel geometry, partial panel counts, obstruction notes, and comparative architectures..."):
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
                         site_notes=user_site_notes, 
                         user_system_type=user_declared_system_type,
+                        panel_count_in_view=panels_in_image_count,
                         manual_image_location=manual_image_location_input,
                         nrel_api_key=nrel_api_key_input
                     )
