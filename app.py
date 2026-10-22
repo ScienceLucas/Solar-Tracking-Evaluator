@@ -2,9 +2,10 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
-             execution controls, live maps, temporal mode selectors, low-wind 
-             warnings, and Tab 2 AI image classification driven strictly by image pixels.
+DESCRIPTION: Main frontend application for the Congressional App Challenge submission.
+             Houses U.S. simulation controls in sidebar batch forms, explicit 
+             execution controls, live U.S. maps, temporal mode selectors, low-wind 
+             warnings, and Tab 2 AI computer vision image classification.
 ===============================================================================
 """
 
@@ -13,7 +14,9 @@ import pandas as pd
 from utils import calculate_solar_physics, analyze_site_image
 from geopy.geocoders import Nominatim
 
-# Page Configuration & Layout Setup
+# =============================================================================
+# 1. PAGE CONFIGURATION & GLOBAL STYLING
+# =============================================================================
 st.set_page_config(
     page_title="AI Solar Tracker & Site Evaluator", 
     layout="wide", 
@@ -23,6 +26,9 @@ st.set_page_config(
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
 
+# =============================================================================
+# 2. NAVIGATION LAYOUT CONTROL
+# =============================================================================
 app_tab_selection = st.radio(
     "Navigation Mode", 
     ["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: AI Image Site & Panel Audit"],
@@ -32,11 +38,25 @@ app_tab_selection = st.radio(
 
 st.markdown("---")
 
+# =============================================================================
+# 3. TAB 1: U.S. TRACKING PHYSICS & SIMULATION
+# =============================================================================
 if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
-    # --- SIDEBAR CONTROLS (VISIBLE ONLY ON TAB 1) ---
+    
+    # --- Sidebar Input Controls ---
     st.sidebar.header("🌍 U.S. Simulation Controls")
-    city_query_input = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
-    nrel_api_key_input = st.sidebar.text_input("NREL API Key (Optional)", value="DEMO_KEY", type="password", help="Enter your free API key from developer.nrel.gov.")
+    city_query_input = st.sidebar.text_input(
+        "Search U.S. City / Location", 
+        "Cornelius, NC", 
+        help="Enter any U.S. city, state, or zip code for regional solar radiation mapping."
+    )
+    
+    nrel_api_key_input = st.sidebar.text_input(
+        "NREL API Key (Optional)", 
+        value="DEMO_KEY", 
+        type="password", 
+        help="Enter your free API key from developer.nrel.gov."
+    )
 
     simulation_mode = st.sidebar.selectbox(
         "Simulation Temporal Mode",
@@ -44,10 +64,12 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
         help="Switch between annual totals and detailed seasonal performance analysis across Spring, Summer, Autumn, and Winter."
     )
 
+    # Default U.S. coordinates (Cornelius, NC)
     latitude_val, longitude_val = 35.4858, -80.9038
     active_location_label = "Cornelius, North Carolina"
+    
     try:
-        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_enterprise_v24")
+        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_enterprise_v100")
         geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
         if geocoded_location_obj:
             latitude_val = geocoded_location_obj.latitude
@@ -56,20 +78,43 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
             st.sidebar.success(f"U.S. Pinned: {active_location_label[:38]}...")
         else:
             st.sidebar.warning("Location not found in U.S. Using default (Cornelius, NC).")
-    except Exception as e:
-        logging_debug_msg = str(e)
+    except Exception as geo_error:
+        st.sidebar.debug(f"Geocoding error: {str(geo_error)}")
 
     st.sidebar.markdown("---")
 
+    # Explicit Form Submission to prevent auto-rerunning on slider drag
     with st.sidebar.form(key="simulation_input_form"):
         st.markdown("##### 🎛️ Parameters Configuration")
-        array_panel_count = st.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
-        configured_tilt_angle = st.slider("Panel Tilt Angle / Fixed Tilt Surface (Degrees)", 0, 90, 31)
-        configured_wind_cutoff = st.slider("Wind Speed Cutoff Threshold (mph)", 5, 30, 15)
-        configured_inverter_eff = st.slider("Inverter Efficiency (%)", 85.0, 99.0, 96.0)
+        array_panel_count = st.number_input(
+            "Number of Panels in Array", 
+            min_value=1, 
+            max_value=500, 
+            value=60,
+            help="Total count of photovoltaic modules in the simulated array."
+        )
+        configured_tilt_angle = st.slider(
+            "Panel Tilt Angle / Fixed Tilt Surface (Degrees)", 
+            0, 90, 31,
+            help="Optimal tilt angle relative to the horizontal surface."
+        )
+        configured_wind_cutoff = st.slider(
+            "Wind Speed Cutoff Threshold (mph)", 
+            5, 30, 15,
+            help="Wind speed at which trackers lock flat for mechanical safety."
+        )
+        configured_inverter_eff = st.slider(
+            "Inverter Efficiency (%)", 
+            85.0, 99.0, 96.0,
+            help="DC-to-AC conversion efficiency rating."
+        )
 
         st.markdown("---")
-        run_simulation_button = st.form_submit_button("🚀 Run Simulation Model", type="primary", use_container_width=True)
+        run_simulation_button = st.form_submit_button(
+            "🚀 Run Simulation Model", 
+            type="primary", 
+            use_container_width=True
+        )
 
     if 'simulation_executed' not in st.session_state:
         st.session_state['simulation_executed'] = True
@@ -77,6 +122,7 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
     if run_simulation_button:
         st.session_state['simulation_executed'] = True
 
+    # --- Main Tab 1 Display Area ---
     st.header("U.S. Location & AI Tracking Physics Simulator")
     st.markdown(f"Active Mode: **{simulation_mode}**. Adjust your parameters in the sidebar form and click **'Run Simulation Model'** to update outputs.")
     
@@ -159,15 +205,27 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
         else:
             st.info("👈 Modify your parameters in the sidebar form and click **'Run Simulation Model'** to generate results.")
 
+# =============================================================================
+# 4. TAB 2: AI IMAGE SITE & PANEL CLASSIFICATION AUDITOR
+# =============================================================================
 else:
-    # --- TAB 2: AI AUDIT ---
     st.header("👁️ AI Image Site & Panel Classification Auditor")
     st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI model automatically classifies panel presence and evaluates performance based strictly on the image and required inputs below.")
     
     audit_col_left, audit_col_right = st.columns(2)
+    
     with audit_col_left:
-        uploaded_site_image_file = st.file_uploader("1. Upload Site Image / Roof Blueprint", type=["png", "jpg", "jpeg", "webp"])
-        manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="Enter the U.S. city where the image was captured.")
+        uploaded_site_image_file = st.file_uploader(
+            "1. Upload Site Image / Roof Blueprint", 
+            type=["png", "jpg", "jpeg", "webp"],
+            help="Upload the visual asset you want the computer vision engine to scan."
+        )
+        
+        manual_image_location_input = st.text_input(
+            "Specify U.S. Image Location (City, State)", 
+            "Cornelius, NC", 
+            help="Enter the U.S. city where the image was captured for PSH and solar radiation calculations."
+        )
         
         if uploaded_site_image_file:
             st.success(f"Successfully received: **{uploaded_site_image_file.name}**")
@@ -175,9 +233,16 @@ else:
 
     with audit_col_right:
         st.markdown("##### 2. Essential Site & Terrain Information")
+        
         surface_terrain_type = st.selectbox(
             "Installation Surface / Terrain Type",
-            ["Flat Commercial Roof", "Pitched Residential Shingle", "Ground-Mounted Agricultural Field", "Coastal / High Humidity Ground"]
+            [
+                "Pitched Residential Shingle", 
+                "Flat Commercial Roof", 
+                "Ground-Mounted Agricultural Field", 
+                "Coastal / High Humidity Ground"
+            ],
+            help="Select the structural mounting surface type."
         )
         
         is_partial_view_flag = st.checkbox(
@@ -189,11 +254,15 @@ else:
         user_site_notes = st.text_area(
             "General Optional Info (Shading, Obstructions, Notes)",
             value="Commercial roof with minor tree shading along East edge. 15 mph average wind exposure.",
-            height=100,
+            height=120,
             help="Optional notes on local shading or environmental conditions."
         )
         
-        execute_audit_button = st.button("🔍 Run AI Image Classification & Tailored Recommendation Audit", use_container_width=True, type="primary")
+        execute_audit_button = st.button(
+            "🔍 Run AI Image Classification & Tailored Recommendation Audit", 
+            use_container_width=True, 
+            type="primary"
+        )
         
         if execute_audit_button:
             if uploaded_site_image_file is None:
