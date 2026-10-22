@@ -3,7 +3,8 @@
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & AI Computer Vision Engine)
 DESCRIPTION: Contains enterprise-grade mathematical models, NREL API wrappers, 
-             zero-panel handling for empty site suggestions, and AI classification.
+             independent zero-panel computer vision detection, and explicit 
+             financial savings breakdowns with tailored panel recommendations.
 ===============================================================================
 """
 
@@ -221,10 +222,11 @@ def extract_gps_from_image(image_file_object):
         logging.debug(f"EXIF parsing error: {str(e)}")
     return None, None
 
-def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type="Unknown / Evaluating New Site", total_panel_count=60, manual_image_location="", nrel_api_key="DEMO_KEY"):
+def analyze_site_image(uploaded_file, surface_type, site_notes, manual_image_location="", nrel_api_key="DEMO_KEY"):
     """
-    Performs advanced AI computer vision pixel analysis combined with total-array panel scaling 
-    (supporting 0 panels for empty site suggestions) and obstruction text-parsing.
+    Performs autonomous AI computer vision pixel analysis to independently detect 
+    panel presence or empty terrain, sizing arrays and generating tailored panel recommendations 
+    with explicit 25-year financial savings breakdowns.
     """
     if uploaded_file is None:
         return "⚠️ No image uploaded. Please upload a site image in Step 1 above to execute the AI audit."
@@ -241,7 +243,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v19")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v20")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
@@ -252,7 +254,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
             resolved_latitude_val = extracted_lat
             resolved_location_string = f"GPS Verified U.S. Coordinate ({extracted_lat:.4f}, {extracted_lon:.4f})"
 
-        # --- AI COMPUTER VISION PIXEL CLASSIFICATION SCAN ---
+        # --- INDEPENDENT AI COMPUTER VISION CLASSIFICATION SCAN ---
         rgb_image_converted = img.convert('RGB')
         pixel_array = np.array(rgb_image_converted)
         average_luminosity_index = np.mean(pixel_array)
@@ -275,24 +277,29 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         if "severe" in notes_lowercased or "heavy" in notes_lowercased:
             obstruction_penalty = 0.70
 
-        # If user explicitly set panel count to 0 or panel percentage is very low on empty terrain
-        if total_panel_count == 0 and panel_pixel_percentage < 3.5 and canopy_foliage_percentage <= 60.0:
-            classification_status = "🔵 Suitable New Site (0 Panels Currently Installed - Suggested Deployment)"
-            recommendation_text = f"The AI model evaluated the empty roof/terrain (`{surface_type}`) and generated recommended optimal configurations for your proposed build."
-        elif canopy_foliage_percentage > 60.0:
+        # Autonomous AI Classification Decision Tree (Zero reliance on user input for panel status)
+        if canopy_foliage_percentage > 60.0:
             classification_status = "🔴 Unfitting Image / Non-Solar Site (Excessive Canopy & Obstructions)"
             recommendation_text = "The AI model detected heavy foliage/canopy interference (>60%) across the scanned asset. This location is poorly suited for solar without extensive tree trimming."
-        elif panel_pixel_percentage > 3.5 or total_panel_count > 0:
-            classification_status = "🟢 Existing Panel Installation / Custom Sized Asset"
-            recommendation_text = f"The AI model processed the site asset. Your configured array size (`{total_panel_count} panels`) and setup (`{user_system_type}`) were audited against alternative tracking architectures."
+            recommended_panel_type = "Not Recommended (Site Clearance Required First)"
+        elif panel_pixel_percentage > 3.5:
+            classification_status = "🟢 Existing Panel Installation Automatically Detected"
+            recommendation_text = "The AI model autonomously identified solar module silicon reflection patterns and grid structures, benchmarking performance against alternative tracking architectures."
+            recommended_panel_type = "Monocrystalline Silicon Modules (High Efficiency Existing Asset)"
         else:
-            classification_status = "🔵 Suitable Location for Panels (Empty Roof / Terrain)"
-            recommendation_text = f"The AI model evaluated the site terrain (`{surface_type}`) and confirmed an unobstructed surface area suitable for new solar panel generation."
+            classification_status = "🔵 Suitable New Site / Empty Roof Automatically Detected"
+            recommendation_text = f"The AI model scanned the asset, confirmed an unobstructed surface (`{surface_type}`), and autonomously generated optimal new deployment recommendations."
+            if "Ground" in surface_type or "Agricultural" in surface_type:
+                recommended_panel_type = "Bifacial Smart-Tracking Modules (Captures reflected ground albedo for maximum yield)"
+            elif "Commercial" in surface_type:
+                recommended_panel_type = "High-Density Monocrystalline Modules (Optimized for flat roof ballasted racking)"
+            else:
+                recommended_panel_type = "Standard Residential Monocrystalline Modules (Best aesthetic and space-to-power ratio)"
 
         site_peak_sun_hours = max(2.5, 5.85 - (abs(resolved_latitude_val) * 0.042))
         annual_psh_total = site_peak_sun_hours * 365.0
         
-        evaluation_array_size = float(total_panel_count if total_panel_count > 0 else 12) # Default baseline for suggestion if 0
+        evaluation_array_size = 24.0 if panel_pixel_percentage <= 3.5 else 48.0 # Autonomous sizing
         array_total_kw = evaluation_array_size * 0.400
         
         shading_loss_penalty = max(0.50, (1.0 - (canopy_foliage_percentage / 70.0))) * obstruction_penalty
@@ -310,27 +317,39 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
             total_savings = sum(annual_kwh * ((1.0 - 0.005) ** i) * electricity_tariff_rate for i in range(25))
             return total_savings - upfront_cost
 
-        fixed_net = compute_25yr_net(fixed_yield, 320 * evaluation_array_size)
-        std_net = compute_25yr_net(standard_tracker_yield, 350 * evaluation_array_size)
-        ai_net = compute_25yr_net(ai_tracker_yield, 390 * evaluation_array_size)
+        fixed_upfront = 320 * evaluation_array_size
+        std_upfront = 350 * evaluation_array_size
+        ai_upfront = 390 * evaluation_array_size
+
+        fixed_net = compute_25yr_net(fixed_yield, fixed_upfront)
+        std_net = compute_25yr_net(standard_tracker_yield, std_upfront)
+        ai_net = compute_25yr_net(ai_tracker_yield, ai_upfront)
 
         feasibility_report_markdown = f"""
-        ### 🤖 AI Computer Vision Classification & Audit Report
+        ### 🤖 Autonomous AI Computer Vision Classification & Audit Report
         - **AI Image Classification Result:** **{classification_status}**
         - **U.S. Resolved Location:** `{resolved_location_string}` (Latitude `{resolved_latitude_val:.2f}°` | PSH: `{site_peak_sun_hours:.2f} hrs/day`)
-        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name}) | **Array Sizing Evaluated:** `{int(evaluation_array_size)} units`
+        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name}) | **Autonomously Sized Array:** `{int(evaluation_array_size)} units`
         - **Pixel Luminosity:** `{average_luminosity_index:.1f}/255` | **Canopy Foliage:** `{canopy_foliage_percentage:.1f}%` | **Panel Confidence:** `{panel_pixel_percentage:.1f}%`
         - **Installation Surface:** `{surface_type}` | **Obstruction Factor:** `{obstruction_penalty}` -> "{site_notes}"
+        - **AI Panel Type Recommendation:** ⭐ **{recommended_panel_type}**
         - **AI Evaluation Summary:** {recommendation_text}
         
         ---
-        #### 📊 Comparative Setup Performance & 25-Year Financial Audit (User Declared Setup: `{user_system_type}`):
+        #### 📊 Comparative Setup Performance & Explicit 25-Year Financial Savings Breakdown:
+        *(Note: 25-year net savings are calculated by summing cumulative annual electricity bill offsets based on a **$0.14/kWh utility tariff rate** and a **0.5% annual module degradation curve**, minus the total upfront equipment and installation investment).*
+
         1. **Fixed Tilt Architecture:**
-           - *Annual Generation:* `{fixed_yield:,.1f} kWh/yr` | *25-Year Net Savings:* **${fixed_net:,.2f}**
+           - *Annual Generation:* `{fixed_yield:,.1f} kWh/yr` | *Upfront Cost:* **${fixed_upfront:,.2f}**
+           - *Explicit 25-Year Net Savings:* **${fixed_net:,.2f}** (Cumulative bill savings minus upfront investment)
+           
         2. **Standard Single-Axis Tracker:**
-           - *Annual Generation:* `{standard_tracker_yield:,.1f} kWh/yr` | *25-Year Net Savings:* **${std_net:,.2f}**
+           - *Annual Generation:* `{standard_tracker_yield:,.1f} kWh/yr` | *Upfront Cost:* **${std_upfront:,.2f}**
+           - *Explicit 25-Year Net Savings:* **${std_net:,.2f}** (Cumulative bill savings minus upfront investment)
+           
         3. **AI Smart Tracker (Recommended Optimal):**
-           - *Annual Generation:* `{ai_tracker_yield:,.1f} kWh/yr` | *25-Year Net Savings:* **${ai_net:,.2f}**
+           - *Annual Generation:* `{ai_tracker_yield:,.1f} kWh/yr` | *Upfront Cost:* **${ai_upfront:,.2f}**
+           - *Explicit 25-Year Net Savings:* **${ai_net:,.2f}** (Cumulative bill savings minus upfront investment)
         """
         return feasibility_report_markdown
     except Exception as exception_error:
