@@ -2,10 +2,8 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
-             execution controls, live maps, temporal mode selectors, low-wind 
-             warnings, and Tab 2 AI image classification with automated zero-panel 
-             detection and tailored panel recommendations.
+DESCRIPTION: Cleaned Tab 2 interface requiring only image, city location, 
+             surface/terrain type, optional partial view checkbox, and general notes.
 ===============================================================================
 """
 
@@ -48,7 +46,7 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
     latitude_val, longitude_val = 35.4858, -80.9038
     active_location_label = "Cornelius, North Carolina"
     try:
-        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v20")
+        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v22")
         geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
         if geocoded_location_obj:
             latitude_val = geocoded_location_obj.latitude
@@ -163,29 +161,35 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
 else:
     # --- TAB 2: AI AUDIT ---
     st.header("👁️ AI Image Site & Panel Classification Auditor")
-    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI model automatically classifies whether panels exist or if the site is a new unbuilt location, providing tailored panel recommendations and savings breakdowns.")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI model automatically classifies panel presence and evaluates performance based strictly on the image and required inputs below.")
     
     audit_col_left, audit_col_right = st.columns(2)
     with audit_col_left:
         uploaded_site_image_file = st.file_uploader("1. Upload Site Image / Roof Blueprint", type=["png", "jpg", "jpeg", "webp"])
-        manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="If your photo lacks EXIF GPS metadata, enter the U.S. city where it was captured.")
+        manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="Enter the U.S. city where the image was captured.")
         
         if uploaded_site_image_file:
             st.success(f"Successfully received: **{uploaded_site_image_file.name}**")
             st.image(uploaded_site_image_file, caption="Uploaded Site Asset Preview", use_container_width=True)
 
     with audit_col_right:
-        st.markdown("##### 2. Site Environmental & Terrain Context")
+        st.markdown("##### 2. Essential Site & Terrain Information")
         surface_terrain_type = st.selectbox(
             "Installation Surface / Terrain Type",
             ["Flat Commercial Roof", "Pitched Residential Shingle", "Ground-Mounted Agricultural Field", "Coastal / High Humidity Ground"]
         )
         
+        is_partial_view_flag = st.checkbox(
+            "Only part of the solar array is shown in this image (scale array capacity)", 
+            value=False,
+            help="Check this if the photo only captures a subset or section of a larger solar installation."
+        )
+        
         user_site_notes = st.text_area(
-            "Local Shading & Physical Obstruction Notes",
+            "General Optional Info (Shading, Obstructions, Notes)",
             value="Commercial roof with minor tree shading along East edge. 15 mph average wind exposure.",
-            height=120,
-            help="Describe any obstructions, nearby trees, or shading. The AI model explicitly factors these notes into the audit."
+            height=100,
+            help="Optional notes on local shading or environmental conditions."
         )
         
         execute_audit_button = st.button("🔍 Run AI Image Classification & Tailored Recommendation Audit", use_container_width=True, type="primary")
@@ -194,11 +198,12 @@ else:
             if uploaded_site_image_file is None:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
             else:
-                with st.spinner("AI model independently analyzing asset pixels, detecting panel presence, and calculating financial savings..."):
+                with st.spinner("AI model independently analyzing image pixels, detecting panel presence, and calculating financial savings..."):
                     nrel_api_key_input = "DEMO_KEY"
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
+                        is_partial_view=is_partial_view_flag,
                         site_notes=user_site_notes, 
                         manual_image_location=manual_image_location_input,
                         nrel_api_key=nrel_api_key_input
