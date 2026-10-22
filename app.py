@@ -2,9 +2,8 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
-             execution controls, live maps, temporal mode selectors, low-wind 
-             warnings, and Tab 2 AI image classification with dynamic sidebar hiding.
+DESCRIPTION: Manages sidebar visibility per tab, allows panel counts to go down 
+             to 0 for unbuilt/empty site evaluations, and runs simulations.
 ===============================================================================
 """
 
@@ -23,21 +22,18 @@ st.set_page_config(
 st.title("☀️ AI Solar Tracker & Site Intelligence Auditor")
 st.markdown("*Congressional App Challenge Project | Advanced U.S. GIS, Computer Vision & Financial ROI Simulator*")
 
-# --- PRIMARY APP TABS ---
-tab_simulation, tab_audit = st.tabs(["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: AI Image Site & Panel Audit"])
+# Using a selectbox or radio for tabs to cleanly control sidebar presence in Streamlit
+app_tab_selection = st.radio(
+    "Navigation Mode", 
+    ["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: AI Image Site & Panel Audit"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
-# --- DYNAMIC SIDEBAR VISIBILITY CONTROL ---
-# When Tab 2 is active, we inject CSS to hide the sidebar completely. When Tab 1 is active, we ensure it's visible.
-# Note: Since st.tabs doesn't return an active index directly without state, 
-# we control the sidebar rendering or inject CSS based on container context, 
-# or use st.radio/st.selectbox if absolute tab-switch CSS binding is needed. 
-# Alternatively, we can use a clean CSS state toggle or put the sidebar code strictly inside Tab 1's block!
+st.markdown("---")
 
-# BEST STREAMLIT APPROACH: Render sidebar contents ONLY when on Tab 1, or hide via CSS if Tab 2 is selected.
-# Let's use a session state or check tab selection by rendering the tabs and controlling sidebar inputs dynamically:
-
-with tab_simulation:
-    # --- SIDEBAR CONTROLS ENCLOSED IN A BATCH-SUBMISSION FORM (ONLY FOR TAB 1) ---
+if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
+    # --- SIDEBAR CONTROLS (VISIBLE ONLY ON TAB 1) ---
     st.sidebar.header("🌍 U.S. Simulation Controls")
     city_query_input = st.sidebar.text_input("Search U.S. City / Location", "Cornelius, NC", help="Enter any U.S. city, state, or zip code.")
     nrel_api_key_input = st.sidebar.text_input("NREL API Key (Optional)", value="DEMO_KEY", type="password", help="Enter your free API key from developer.nrel.gov.")
@@ -51,7 +47,7 @@ with tab_simulation:
     latitude_val, longitude_val = 35.4858, -80.9038
     active_location_label = "Cornelius, North Carolina"
     try:
-        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v18")
+        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v19")
         geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
         if geocoded_location_obj:
             latitude_val = geocoded_location_obj.latitude
@@ -163,31 +159,21 @@ with tab_simulation:
         else:
             st.info("👈 Modify your parameters in the sidebar form and click **'Run Simulation Model'** to generate results.")
 
-with tab_audit:
-    # Hide sidebar via CSS injection when Tab 2 is active
-    st.markdown(
-        """
-        <style>
-            [data-testid="stSidebar"] {
-                display: none;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
+else:
+    # --- TAB 2: AI AUDIT (SIDEBAR IS NATURALLY ABSENT HERE) ---
     st.header("👁️ AI Image Site & Panel Classification Auditor")
-    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. Specify the **total** number of panels in the full system array (assuming identical modules if only partially pictured), log your local shading notes, and run the AI audit.")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. If evaluating an empty roof/site with **0** existing panels, specify your proposed panel count to receive tailored AI architecture recommendations.")
     
     audit_col_left, audit_col_right = st.columns(2)
     with audit_col_left:
         uploaded_site_image_file = st.file_uploader("1. Upload Site Image / Roof Blueprint", type=["png", "jpg", "jpeg", "webp"])
         manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="If your photo lacks EXIF GPS metadata, enter the U.S. city where it was captured.")
         
-        total_array_panel_count_input = st.number_input(
-            "Total Number of Panels in Full Array (Assumes Identical Scaling)", 
-            min_value=1, max_value=500, value=60,
-            help="Enter the total panel count for the complete installation. If the image only captures a partial view, the model samples the image and scales the output across this total count."
+        # Panel count can now go down to 0 for unbuilt / empty site suggestions
+        proposed_array_panel_count = st.number_input(
+            "Proposed or Existing Panel Count (Can be 0 for New Site Recommendations)", 
+            min_value=0, max_value=500, value=12,
+            help="Set to 0 or your intended array size when evaluating empty roofs or unfurnished terrain to get customized AI capacity and yield suggestions."
         )
         
         if uploaded_site_image_file:
@@ -219,13 +205,14 @@ with tab_audit:
             if uploaded_site_image_file is None:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
             else:
-                with st.spinner("AI model analyzing pixel geometry, total array scaling, obstruction notes, and comparative architectures..."):
+                with st.spinner("AI model analyzing pixel geometry, panel presence, obstruction notes, and comparative architectures..."):
+                    nrel_api_key_input = "DEMO_KEY"
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
                         site_notes=user_site_notes, 
                         user_system_type=user_declared_system_type,
-                        total_panel_count=total_array_panel_count_input,
+                        total_panel_count=proposed_array_panel_count,
                         manual_image_location=manual_image_location_input,
                         nrel_api_key=nrel_api_key_input
                     )
