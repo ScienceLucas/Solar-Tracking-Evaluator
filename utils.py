@@ -3,8 +3,8 @@
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & AI Computer Vision Engine)
 DESCRIPTION: Contains enterprise-grade mathematical models, NREL API wrappers, 
-             and AI image classification logic to categorize uploaded images into 
-             existing panels, suitable sites, or unfitting assets with comparative ROI.
+             partial-panel scaling factors, obstruction note parsing, and AI 
+             computer vision image classification.
 ===============================================================================
 """
 
@@ -123,7 +123,7 @@ def calculate_solar_physics(lat, lon, tilt_angle, wind_cutoff, panel_count, inve
     standard_tracker_annual_yield = float(standard_tracker_annual_yield)
     ai_tracker_annual_yield = float(ai_tracker_annual_yield)
 
-    motor_wear_reduction_pct = round(44.0 - ((wind_f - 5.0) * (14.0 / 25.0)) + (abs(latitude_val := lat_f) * 0.05), 1)
+    motor_wear_reduction_pct = round(44.0 - ((wind_f - 5.0) * (14.0 / 25.0)) + (abs(lat_f) * 0.05), 1)
     motor_wear_reduction_pct = max(20.0, min(65.0, motor_wear_reduction_pct))
 
     unoptimal_wind_warning = None
@@ -219,11 +219,10 @@ def extract_gps_from_image(image_file_object):
         logging.debug(f"EXIF parsing error: {str(e)}")
     return None, None
 
-def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type="Unknown / Evaluating New Site", manual_image_location="", nrel_api_key="DEMO_KEY"):
+def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type="Unknown / Evaluating New Site", panel_count_in_view=12, manual_image_location="", nrel_api_key="DEMO_KEY"):
     """
-    Performs advanced AI computer vision pixel analysis to classify the uploaded image 
-    into: 1) Existing Panel Installation, 2) Suitable Location for Panels, or 3) Unfitting Image.
-    Benchmarks existing setups or suitable locations against Fixed Tilt, Standard Tracker, and AI Smart Tracker.
+    Performs advanced AI computer vision pixel analysis combined with partial-panel scaling 
+    and obstruction text-parsing to evaluate existing panels or suitable locations.
     """
     if uploaded_file is None:
         return "⚠️ No image uploaded. Please upload a site image in Step 1 above to execute the AI audit."
@@ -240,7 +239,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v14")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v16")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
@@ -257,28 +256,42 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         average_luminosity_index = np.mean(pixel_array)
         
         red_channel, green_channel, blue_channel = pixel_array[:,:,0], pixel_array[:,:,1], pixel_array[:,:,2]
-        vegetation_green_mask = (green_channel.astype(int) > red_channel.astype(int) + 12) & (green_channel.astype(int) > blue_channel.astype(int) + 12)
+        
+        # Canopy foliage calculation
+        vegetation_green_mask = (green_channel.astype(int) > red_channel.astype(int) + 15) & (green_channel.astype(int) > blue_channel.astype(int) + 15)
         canopy_foliage_percentage = (np.sum(vegetation_green_mask) / vegetation_green_mask.size) * 100
 
-        pixel_std_dev = np.std(pixel_array)
-        has_grid_structure = pixel_std_dev > 45.0 and pixel_std_dev < 90.0
+        # Solar panel silicon reflection detection
+        solar_panel_blue_mask = (blue_channel.astype(int) > red_channel.astype(int) + 10) & (pixel_array.mean(axis=2) < 85)
+        panel_pixel_percentage = (np.sum(solar_panel_blue_mask) / solar_panel_blue_mask.size) * 100
 
-        if canopy_foliage_percentage > 65.0 and not has_grid_structure:
+        # Parse local shading and obstruction user notes for penalty adjustments
+        notes_lowercased = site_notes.lower()
+        obstruction_penalty = 1.0
+        if "tree" in notes_lowercased or "shade" in notes_lowercased or "shadow" in notes_lowercased:
+            obstruction_penalty = 0.85
+        if "severe" in notes_lowercased or "heavy" in notes_lowercased:
+            obstruction_penalty = 0.70
+
+        # AI Classification Decision Tree
+        if canopy_foliage_percentage > 60.0:
             classification_status = "🔴 Unfitting Image / Non-Solar Site (Excessive Canopy & Obstructions)"
-            recommendation_text = "The AI model detected heavy foliage/canopy interference (>65%) without detectable panel infrastructure. This location is poorly suited for solar without extensive land clearing."
-        elif has_grid_structure or average_luminosity_index < 95.0:
+            recommendation_text = "The AI model detected heavy foliage/canopy interference (>60%) across the scanned asset. This location is poorly suited for solar without extensive tree trimming."
+        elif panel_pixel_percentage > 3.5:
             classification_status = "🟢 Existing Panel Installation Detected"
-            recommendation_text = f"The AI model successfully identified solar module grid patterns. Your declared setup (`{user_system_type}`) was audited against alternative tracking architectures."
+            recommendation_text = f"The AI model successfully identified solar module silicon reflection patterns. Your declared setup (`{user_system_type}`) was audited against alternative tracking architectures."
         else:
-            classification_status = "🔵 Suitable Location for Panels"
-            recommendation_text = f"The AI model evaluated the site terrain (`{surface_terrain_type}`) and confirmed optimal spatial exposure for new solar deployment."
+            classification_status = "🔵 Suitable Location for Panels (Empty Roof / Terrain)"
+            recommendation_text = f"The AI model evaluated the site terrain (`{surface_terrain_type}`) and confirmed an unobstructed surface area suitable for new solar panel deployment."
 
         site_peak_sun_hours = max(2.5, 5.85 - (abs(resolved_latitude_val) * 0.042))
         annual_psh_total = site_peak_sun_hours * 365.0
-        evaluation_array_size = 12
+        
+        # Scale array size by user-specified visible panel count
+        evaluation_array_size = float(panel_count_in_view)
         array_total_kw = evaluation_array_size * 0.400
         
-        shading_loss_penalty = max(0.50, 1.0 - (canopy_foliage_percentage / 70.0))
+        shading_loss_penalty = max(0.50, (1.0 - (canopy_foliage_percentage / 70.0))) * obstruction_penalty
         luminosity_scaling_factor = average_luminosity_index / 125.0
         
         base_annual_generation = array_total_kw * annual_psh_total * 0.82 * shading_loss_penalty * luminosity_scaling_factor
@@ -301,8 +314,9 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         ### 🤖 AI Computer Vision Classification & Audit Report
         - **AI Image Classification Result:** **{classification_status}**
         - **U.S. Resolved Location:** `{resolved_location_string}` (Latitude `{resolved_latitude_val:.2f}°` | PSH: `{site_peak_sun_hours:.2f} hrs/day`)
-        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name})
-        - **Pixel Luminosity:** `{average_luminosity_index:.1f}/255` | **Canopy Foliage:** `{canopy_foliage_percentage:.1f}%`
+        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name}) | **Panels Evaluated:** `{int(evaluation_array_size)} units`
+        - **Pixel Luminosity:** `{average_luminosity_index:.1f}/255` | **Canopy Foliage:** `{canopy_foliage_percentage:.1f}%` | **Panel Confidence:** `{panel_pixel_percentage:.1f}%`
+        - **Obstruction Factor:** Parsed from notes (`obstruction_penalty`: `{obstruction_penalty}`) -> "{site_notes}"
         - **AI Evaluation Summary:** {recommendation_text}
         
         ---
