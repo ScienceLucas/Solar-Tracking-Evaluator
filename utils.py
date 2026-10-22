@@ -3,7 +3,7 @@
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: utils.py (Enterprise Photovoltaic Physics, NREL API, & AI Computer Vision Engine)
 DESCRIPTION: Contains enterprise-grade mathematical models, NREL API wrappers, 
-             partial-panel scaling factors, obstruction note parsing, and AI 
+             total-panel array scaling, obstruction note parsing, and AI 
              computer vision image classification.
 ===============================================================================
 """
@@ -219,9 +219,9 @@ def extract_gps_from_image(image_file_object):
         logging.debug(f"EXIF parsing error: {str(e)}")
     return None, None
 
-def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type="Unknown / Evaluating New Site", panel_count_in_view=12, manual_image_location="", nrel_api_key="DEMO_KEY"):
+def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type="Unknown / Evaluating New Site", total_panel_count=60, manual_image_location="", nrel_api_key="DEMO_KEY"):
     """
-    Performs advanced AI computer vision pixel analysis combined with partial-panel scaling 
+    Performs advanced AI computer vision pixel analysis combined with total-array panel scaling 
     and obstruction text-parsing to evaluate existing panels or suitable locations.
     """
     if uploaded_file is None:
@@ -239,7 +239,7 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v16")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_high_precision_v18")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
@@ -282,13 +282,13 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
             recommendation_text = f"The AI model successfully identified solar module silicon reflection patterns. Your declared setup (`{user_system_type}`) was audited against alternative tracking architectures."
         else:
             classification_status = "🔵 Suitable Location for Panels (Empty Roof / Terrain)"
-            recommendation_text = f"The AI model evaluated the site terrain (`{surface_terrain_type}`) and confirmed an unobstructed surface area suitable for new solar panel deployment."
+            recommendation_text = f"The AI model evaluated the site terrain (`{surface_type}`) and confirmed an unobstructed surface area suitable for new solar panel deployment."
 
         site_peak_sun_hours = max(2.5, 5.85 - (abs(resolved_latitude_val) * 0.042))
         annual_psh_total = site_peak_sun_hours * 365.0
         
-        # Scale array size by user-specified visible panel count
-        evaluation_array_size = float(panel_count_in_view)
+        # Scale array size by the user-specified total panel count for the full system
+        evaluation_array_size = float(total_panel_count)
         array_total_kw = evaluation_array_size * 0.400
         
         shading_loss_penalty = max(0.50, (1.0 - (canopy_foliage_percentage / 70.0))) * obstruction_penalty
@@ -314,9 +314,9 @@ def analyze_site_image(uploaded_file, surface_type, site_notes, user_system_type
         ### 🤖 AI Computer Vision Classification & Audit Report
         - **AI Image Classification Result:** **{classification_status}**
         - **U.S. Resolved Location:** `{resolved_location_string}` (Latitude `{resolved_latitude_val:.2f}°` | PSH: `{site_peak_sun_hours:.2f} hrs/day`)
-        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name}) | **Panels Evaluated:** `{int(evaluation_array_size)} units`
+        - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px, {img_format_name}) | **Total Array Panels (Identical Scaling):** `{int(evaluation_array_size)} units`
         - **Pixel Luminosity:** `{average_luminosity_index:.1f}/255` | **Canopy Foliage:** `{canopy_foliage_percentage:.1f}%` | **Panel Confidence:** `{panel_pixel_percentage:.1f}%`
-        - **Obstruction Factor:** Parsed from notes (`obstruction_penalty`: `{obstruction_penalty}`) -> "{site_notes}"
+        - **Installation Surface:** `{surface_type}` | **Obstruction Factor:** `{obstruction_penalty}` -> "{site_notes}"
         - **AI Evaluation Summary:** {recommendation_text}
         
         ---
