@@ -346,7 +346,9 @@ def extract_gps_from_image(image_file_object):
         pass
     return None, None
 
-def analyze_site_image(uploaded_file, surface_type, is_partial_view, specified_panel_count, site_notes, manual_image_location="", nrel_api_key="DEMO_KEY"):
+
+
+def analyze_site_image(uploaded_file, surface_type, user_panel_count, site_notes, manual_image_location="", nrel_api_key="DEMO_KEY"):
     if uploaded_file is None:
         return "⚠️ No image uploaded."
     
@@ -361,7 +363,7 @@ def analyze_site_image(uploaded_file, surface_type, is_partial_view, specified_p
         
         if manual_image_location:
             try:
-                geolocator_instance = Nominatim(user_agent="solar_evaluator_v26")
+                geolocator_instance = Nominatim(user_agent="solar_evaluator_v28")
                 geocoded_object = geolocator_instance.geocode(manual_image_location + ", USA")
                 if geocoded_object:
                     resolved_latitude_val = geocoded_object.latitude
@@ -382,14 +384,17 @@ def analyze_site_image(uploaded_file, surface_type, is_partial_view, specified_p
         vegetation_green_mask = (green_channel.astype(int) > red_channel.astype(int) + 12) & (green_channel.astype(int) > blue_channel.astype(int) + 12)
         canopy_foliage_percentage = (np.sum(vegetation_green_mask) / vegetation_green_mask.size) * 100
 
-        # Texture uniformity and color contrast analysis to separate smooth solar panels from textured asphalt/shingle roofs
-        color_variance = np.var(pixel_array, axis=2)
-        uniform_dark_blocks = (pixel_array.mean(axis=2) < 95) & (color_variance < 150)
-        panel_pixel_percentage = (np.sum(uniform_dark_blocks) / uniform_dark_blocks.size) * 100
+        # Texture and edge gradient analysis for panel verification
+        gray_image = np.mean(pixel_array, axis=2)
+        gradient_y, gradient_x = np.gradient(gray_image)
+        edge_magnitude = np.sqrt(gradient_x**2 + gradient_y**2)
+        grid_line_density = (np.sum(edge_magnitude > 35) / edge_magnitude.size) * 100
 
-        # Strict pixel threshold: Shingles have high texture variance, solar panels have smooth uniform dark blocks
-        has_panels = panel_pixel_percentage > 6.8
-        panel_confidence_score = min(98.5, max(4.2, panel_pixel_percentage * 4.5)) if has_panels else panel_pixel_percentage
+        specular_panel_blocks = (gray_image < 70) & (edge_magnitude < 12)
+        panel_pixel_percentage = (np.sum(specular_panel_blocks) / specular_panel_blocks.size) * 100
+
+        has_panels = (panel_pixel_percentage > 4.2) and (grid_line_density > 8.5)
+        panel_confidence_score = min(98.5, max(3.1, panel_pixel_percentage * 6.2)) if has_panels else panel_pixel_percentage * 1.5
 
         notes_lowercased = site_notes.lower()
         obstruction_penalty = 0.85 if ("tree" in notes_lowercased or "shade" in notes_lowercased) else 1.0
@@ -400,7 +405,7 @@ def analyze_site_image(uploaded_file, surface_type, is_partial_view, specified_p
             recommended_panel_type = "Not Recommended (Site Clearance Required First)"
         elif has_panels:
             classification_status = "🟢 Existing Panel Installation Automatically Detected"
-            recommendation_text = f"The computer vision engine successfully verified solar silicon module structures ({panel_confidence_score:.1f}% confidence score) from image pixel uniformity."
+            recommendation_text = f"The computer vision engine successfully verified solar silicon module structures ({panel_confidence_score:.1f}% confidence score) from image pixel uniformity and grid line mapping."
             recommended_panel_type = "Monocrystalline Silicon Modules (High Efficiency Existing Asset)"
         else:
             classification_status = "🔵 Suitable New Site / Empty Roof Automatically Detected"
@@ -415,17 +420,9 @@ def analyze_site_image(uploaded_file, surface_type, is_partial_view, specified_p
         site_peak_sun_hours = max(2.5, 5.85 - (abs(resolved_latitude_val) * 0.042))
         annual_psh_total = site_peak_sun_hours * 365.0
         
-        # Use user-specified panel count if provided, otherwise derive from resolution
-        if specified_panel_count and specified_panel_count > 0:
-            derived_array_size = float(specified_panel_count)
-            sizing_source_label = f"User-Specified ({int(derived_array_size)} units)"
-        else:
-            image_resolution_scale = (img_width * img_height) / 100000.0
-            derived_array_size = max(12.0, round(image_resolution_scale * 8.0, 0)) if not has_panels else round(image_resolution_scale * 14.0, 0)
-            sizing_source_label = f"AI Pixel-Derived ({int(derived_array_size)} units)"
-
-        if is_partial_view:
-            derived_array_size *= 2.5
+        # Directly use the mandatory user-specified panel count
+        derived_array_size = float(user_panel_count)
+        sizing_source_label = f"User-Mandated Baseline ({int(derived_array_size)} units)"
             
         array_total_kw = derived_array_size * 0.400
         shading_loss_penalty = max(0.50, (1.0 - (canopy_foliage_percentage / 70.0))) * obstruction_penalty
@@ -448,7 +445,7 @@ def analyze_site_image(uploaded_file, surface_type, is_partial_view, specified_p
         - **U.S. Resolved Location:** `{resolved_location_string}` (Latitude `{resolved_latitude_val:.2f}°` | PSH: `{site_peak_sun_hours:.2f} hrs/day`)
         - **Visual Asset Scanned:** `{uploaded_file.name}` ({img_width}x{img_height} px) | **Array Sizing Mode:** `{sizing_source_label}`
         - **Pixel Luminosity:** `{average_luminosity_index:.1f}/255` | **Canopy Foliage:** `{canopy_foliage_percentage:.1f}%` | **Panel Confidence Score:** `{panel_confidence_score:.1f}%`
-        - **Installation Surface:** `{surface_type}` | **Partial View Scaling:** `{"Enabled (2.5x)" if is_partial_view else "Standard View"}`
+        - **Installation Surface:** `{surface_type}`
         - **AI Panel Type Recommendation:** ⭐ **{recommended_panel_type}**
         - **AI Evaluation Summary:** {recommendation_text}
         
