@@ -2,9 +2,9 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Houses U.S. simulation controls inside a batch-submission form 
-             in the sidebar, explicit execution controls, live maps, temporal 
-             mode selectors, metric cards, low wind speed warnings, and Tab 2 auditor.
+DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
+             execution controls, live maps, temporal mode selectors, low-wind 
+             warnings, and Tab 2 AI image classification & comparative auditing.
 ===============================================================================
 """
 
@@ -37,7 +37,7 @@ simulation_mode = st.sidebar.selectbox(
 latitude_val, longitude_val = 35.4858, -80.9038
 active_location_label = "Cornelius, North Carolina"
 try:
-    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v12")
+    geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v14")
     geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
     if geocoded_location_obj:
         latitude_val = geocoded_location_obj.latitude
@@ -51,7 +51,6 @@ except Exception:
 
 st.sidebar.markdown("---")
 
-# Using st.sidebar.form so outputs only update when the user clicks submit instead of auto-rerunning on every slider drag
 with st.sidebar.form(key="simulation_input_form"):
     st.markdown("##### 🎛️ Parameters Configuration")
     array_panel_count = st.number_input("Number of Panels in Array", min_value=1, max_value=500, value=60)
@@ -62,7 +61,6 @@ with st.sidebar.form(key="simulation_input_form"):
     st.markdown("---")
     run_simulation_button = st.form_submit_button("🚀 Run Simulation Model", type="primary", use_container_width=True)
 
-# Session State Management for Form Submission Tracking
 if 'simulation_executed' not in st.session_state:
     st.session_state['simulation_executed'] = True
 
@@ -70,7 +68,7 @@ if run_simulation_button:
     st.session_state['simulation_executed'] = True
 
 # --- PRIMARY APP TABS ---
-tab_simulation, tab_audit = st.tabs(["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: Site Image & Panel ROI Audit"])
+tab_simulation, tab_audit = st.tabs(["⚡ Tab 1: U.S. Tracking Physics & Simulation", "👁️ Tab 2: AI Image Site & Panel Audit"])
 
 with tab_simulation:
     st.header("U.S. Location & AI Tracking Physics Simulator")
@@ -102,7 +100,6 @@ with tab_simulation:
             if simulation_mode == "Full Year Aggregate":
                 fixed_yield_val, standard_yield_val, ai_yield_val, motor_wear_reduction_pct, seasonal_dict, wind_cutoff_comparison_message, unoptimal_wind_warning = sim_results
                 
-                # Check and display unoptimal low wind speed warning if triggered
                 if unoptimal_wind_warning:
                     st.warning(f"⚠️ **Low Wind Speed Cutoff Warning ({configured_wind_cutoff} mph):**\n\n{unoptimal_wind_warning}")
 
@@ -157,20 +154,25 @@ with tab_simulation:
             st.info("👈 Modify your parameters in the sidebar form and click **'Run Simulation Model'** to generate results.")
 
 with tab_audit:
-    st.header("Automated Computer Vision & Panel ROI Audit")
-    st.markdown("Upload site aerials, drone photos, or roof blueprints. The computer vision engine evaluates pixel luminosity and foliage density to rank the **Big 3 Panel Types** for energy gain and structural wear resilience.")
+    st.header("👁️ AI Image Site & Panel Classification Auditor")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI computer vision engine classifies the image, evaluates existing panel installation setup quality or site suitability, and benchmarks performance against Fixed, Standard Tracker, or AI Smart Tracker architectures.")
     
     audit_col_left, audit_col_right = st.columns(2)
     with audit_col_left:
-        uploaded_site_image_file = st.file_uploader("1. Upload Roof Blueprint, Drone Photo, or CAD File", type=["png", "jpg", "jpeg", "webp"])
+        uploaded_site_image_file = st.file_uploader("1. Upload Site Image / Roof Blueprint", type=["png", "jpg", "jpeg", "webp"])
         manual_image_location_input = st.text_input("Specify U.S. Image Location (City, State)", "Cornelius, NC", help="If your photo lacks EXIF GPS metadata, enter the U.S. city where it was captured.")
         
         if uploaded_site_image_file:
             st.success(f"Successfully received: **{uploaded_site_image_file.name}**")
-            st.image(uploaded_site_image_file, caption="Site Overview Preview", use_container_width=True)
+            st.image(uploaded_site_image_file, caption="Uploaded Site Asset Preview", use_container_width=True)
 
     with audit_col_right:
-        st.markdown("##### 2. Site Physical & Environmental Context")
+        st.markdown("##### 2. User Architecture & Environmental Input")
+        user_declared_system_type = st.selectbox(
+            "Current or Intended System Setup Type",
+            ["Fixed Tilt Array", "Standard Single-Axis Tracker", "AI Smart Tracker", "Unknown / Evaluating New Site"]
+        )
+        
         surface_terrain_type = st.selectbox(
             "Installation Surface / Terrain Type",
             ["Flat Commercial Roof", "Pitched Residential Shingle", "Ground-Mounted Agricultural Field", "Coastal / High Humidity Ground"]
@@ -182,17 +184,18 @@ with tab_audit:
             height=120
         )
         
-        execute_audit_button = st.button("🔍 Analyze Site Context & Generate Report", use_container_width=True)
+        execute_audit_button = st.button("🔍 Run AI Image Classification & Comparative Audit", use_container_width=True, type="primary")
         
         if execute_audit_button:
             if uploaded_site_image_file is None:
-                st.warning("⚠️ Please upload a site layout or aerial photo in Step 1 before running the computer vision audit.")
+                st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
             else:
-                with st.spinner("Running computer vision pixel scan & Big 3 financial ROI modeling..."):
+                with st.spinner("AI model analyzing pixel geometry, panel presence, and comparative architectures..."):
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
                         site_notes=user_site_notes, 
+                        user_system_type=user_declared_system_type,
                         manual_image_location=manual_image_location_input,
                         nrel_api_key=nrel_api_key_input
                     )
