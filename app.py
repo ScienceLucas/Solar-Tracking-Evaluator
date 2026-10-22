@@ -2,8 +2,9 @@
 ===============================================================================
 PROJECT: AI Solar Tracker & Site Intelligence Auditor
 MODULE: app.py (Streamlit Frontend UI & Interactive Execution Workspace)
-DESCRIPTION: Cleaned Tab 2 interface requiring only image, city location, 
-             surface/terrain type, optional partial view checkbox, and general notes.
+DESCRIPTION: Houses U.S. simulation controls in sidebar batch forms, explicit 
+             execution controls, live maps, temporal mode selectors, low-wind 
+             warnings, and Tab 2 AI image classification driven strictly by image pixels.
 ===============================================================================
 """
 
@@ -46,7 +47,7 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
     latitude_val, longitude_val = 35.4858, -80.9038
     active_location_label = "Cornelius, North Carolina"
     try:
-        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_run_v22")
+        geolocator_sidebar = Nominatim(user_agent="solar_app_sidebar_enterprise_v24")
         geocoded_location_obj = geolocator_sidebar.geocode(city_query_input + ", USA")
         if geocoded_location_obj:
             latitude_val = geocoded_location_obj.latitude
@@ -55,8 +56,8 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
             st.sidebar.success(f"U.S. Pinned: {active_location_label[:38]}...")
         else:
             st.sidebar.warning("Location not found in U.S. Using default (Cornelius, NC).")
-    except Exception:
-        pass
+    except Exception as e:
+        logging_debug_msg = str(e)
 
     st.sidebar.markdown("---")
 
@@ -199,13 +200,12 @@ else:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
             else:
                 with st.spinner("AI model independently analyzing image pixels, detecting panel presence, and calculating financial savings..."):
-                    nrel_api_key_input = "DEMO_KEY"
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
                         is_partial_view=is_partial_view_flag,
                         site_notes=user_site_notes, 
                         manual_image_location=manual_image_location_input,
-                        nrel_api_key=nrel_api_key_input
+                        nrel_api_key="DEMO_KEY"
                     )
                     st.markdown(generated_audit_report)
