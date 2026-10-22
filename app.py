@@ -210,7 +210,7 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
 # =============================================================================
 else:
     st.header("👁️ AI Image Site & Panel Classification Auditor")
-    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. Provide your panel count estimate below to enable precise mathematical energy modeling.")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. Verify panel presence and count below to ensure flawless mathematical energy modeling.")
     
     audit_col_left, audit_col_right = st.columns(2)
     
@@ -245,19 +245,27 @@ else:
             help="Select the structural mounting surface type."
         )
         
-        # Mandatory Panel Count Input (Required before processing)
-        mandatory_panel_input_count = st.number_input(
-            "📍 Required: Total Number of Panels (Existing Count or Desired Target)", 
+        # Yes/No User Question with Clarifying Helper Text
+        has_panels_choice = st.radio(
+            "Are there existing solar panels on this site?",
+            ["No", "Yes"],
+            horizontal=True,
+            help="(Helps ensure the AI is correct and prevents false classifications)"
+        )
+        
+        # Mandatory Panel Count Input
+        user_panel_count = st.number_input(
+            "Total Number of Panels (Existing Count or Desired Target)", 
             min_value=1, 
             max_value=2000, 
             value=36,
-            help="Enter the exact count of panels currently on the roof, or your rough estimate/desired quantity for a new installation. Required for accurate NREL energy math."
+            help="Enter the exact count for precise NREL energy output and financial ROI math."
         )
         
         user_site_notes = st.text_area(
             "General Optional Info (Shading, Obstructions, Notes)",
             value="Roof structure with minimal shading. Ready for high-efficiency deployment.",
-            height=100,
+            height=90,
             help="Optional notes on local shading or environmental conditions."
         )
         
@@ -270,16 +278,18 @@ else:
         if execute_audit_button:
             if uploaded_site_image_file is None:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
-            elif mandatory_panel_input_count <= 0:
+            elif user_panel_count <= 0:
                 st.warning("⚠️ Please enter a valid panel count greater than 0 to proceed with mathematical modeling.")
             else:
-                with st.spinner("AI model independently analyzing image pixels and calculating financial savings..."):
+                with st.spinner("AI model analyzing image pixels and calculating financial savings..."):
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
-                        user_panel_count=mandatory_panel_input_count,
+                        has_panels_choice=has_panels_choice,
+                        user_panel_count=user_panel_count,
                         site_notes=user_site_notes, 
                         manual_image_location=manual_image_location_input,
                         nrel_api_key="DEMO_KEY"
                     )
+                    st.markdown(generated_audit_report)
                     st.markdown(generated_audit_report)
