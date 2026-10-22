@@ -208,10 +208,9 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
 # =============================================================================
 # 4. TAB 2: AI IMAGE SITE & PANEL CLASSIFICATION AUDITOR
 # =============================================================================
-
 else:
     st.header("👁️ AI Image Site & Panel Classification Auditor")
-    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI model automatically classifies panel presence and evaluates performance based strictly on the image and required inputs below.")
+    st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. Provide your panel count estimate below to enable precise mathematical energy modeling.")
     
     audit_col_left, audit_col_right = st.columns(2)
     
@@ -246,26 +245,18 @@ else:
             help="Select the structural mounting surface type."
         )
         
-        is_partial_view_flag = st.checkbox(
-            "Only part of the solar array is shown in this image (scale array capacity)", 
-            value=False,
-            help="Check this if the photo only captures a subset or section of a larger solar installation."
+        # Mandatory Panel Count Input (Required before processing)
+        mandatory_panel_input_count = st.number_input(
+            "📍 Required: Total Number of Panels (Existing Count or Desired Target)", 
+            min_value=1, 
+            max_value=2000, 
+            value=36,
+            help="Enter the exact count of panels currently on the roof, or your rough estimate/desired quantity for a new installation. Required for accurate NREL energy math."
         )
-        
-        # Dynamic Panel Count Input Box (appears when partial view is checked for exact math sizing)
-        specified_panel_count = 0
-        if is_partial_view_flag:
-            specified_panel_count = st.number_input(
-                "Specify Exact Number of Panels in Total Array", 
-                min_value=1, 
-                max_value=2000, 
-                value=30,
-                help="Enter the known total panel count to ensure exact mathematical energy calculations."
-            )
         
         user_site_notes = st.text_area(
             "General Optional Info (Shading, Obstructions, Notes)",
-            value="Commercial roof with minor tree shading along East edge. 15 mph average wind exposure.",
+            value="Roof structure with minimal shading. Ready for high-efficiency deployment.",
             height=100,
             help="Optional notes on local shading or environmental conditions."
         )
@@ -279,13 +270,14 @@ else:
         if execute_audit_button:
             if uploaded_site_image_file is None:
                 st.warning("⚠️ Please upload an image in Step 1 before running the AI image audit.")
+            elif mandatory_panel_input_count <= 0:
+                st.warning("⚠️ Please enter a valid panel count greater than 0 to proceed with mathematical modeling.")
             else:
-                with st.spinner("AI model independently analyzing image pixels, detecting panel presence, and calculating financial savings..."):
+                with st.spinner("AI model independently analyzing image pixels and calculating financial savings..."):
                     generated_audit_report = analyze_site_image(
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
-                        is_partial_view=is_partial_view_flag,
-                        specified_panel_count=specified_panel_count,
+                        user_panel_count=mandatory_panel_input_count,
                         site_notes=user_site_notes, 
                         manual_image_location=manual_image_location_input,
                         nrel_api_key="DEMO_KEY"
