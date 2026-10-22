@@ -208,6 +208,7 @@ if app_tab_selection == "⚡ Tab 1: U.S. Tracking Physics & Simulation":
 # =============================================================================
 # 4. TAB 2: AI IMAGE SITE & PANEL CLASSIFICATION AUDITOR
 # =============================================================================
+
 else:
     st.header("👁️ AI Image Site & Panel Classification Auditor")
     st.markdown("Upload aerial photos, drone captures, roof blueprints, or ground images. The AI model automatically classifies panel presence and evaluates performance based strictly on the image and required inputs below.")
@@ -251,10 +252,21 @@ else:
             help="Check this if the photo only captures a subset or section of a larger solar installation."
         )
         
+        # Dynamic Panel Count Input Box (appears when partial view is checked for exact math sizing)
+        specified_panel_count = 0
+        if is_partial_view_flag:
+            specified_panel_count = st.number_input(
+                "Specify Exact Number of Panels in Total Array", 
+                min_value=1, 
+                max_value=2000, 
+                value=30,
+                help="Enter the known total panel count to ensure exact mathematical energy calculations."
+            )
+        
         user_site_notes = st.text_area(
             "General Optional Info (Shading, Obstructions, Notes)",
             value="Commercial roof with minor tree shading along East edge. 15 mph average wind exposure.",
-            height=120,
+            height=100,
             help="Optional notes on local shading or environmental conditions."
         )
         
@@ -273,6 +285,7 @@ else:
                         uploaded_file=uploaded_site_image_file, 
                         surface_type=surface_terrain_type, 
                         is_partial_view=is_partial_view_flag,
+                        specified_panel_count=specified_panel_count,
                         site_notes=user_site_notes, 
                         manual_image_location=manual_image_location_input,
                         nrel_api_key="DEMO_KEY"
