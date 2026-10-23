@@ -292,4 +292,3 @@ else:
                         nrel_api_key="DEMO_KEY"
                     )
                     st.markdown(generated_audit_report)
-                    st.markdown(generated_audit_report)
